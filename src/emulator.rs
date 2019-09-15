@@ -15,6 +15,46 @@ bitflags! {
     }
 }
 
+fn bytes_to_addr(lo: u8, hi: u8) -> u16 {
+    return ((hi as u16) % 256) * 256 + lo as u16;
+}
+
+#[derive(Debug)]
+enum AddressingMode {
+    /// Zero-Page
+    ZP,
+    /// Zero-Page Indexed, X register
+    ZPX,
+    /// Zero-Page Indexed, Y register
+    ZPY,
+    /// Absolute Indexed, plus X register
+    AbsX,
+    /// Absolute Indexed, plus Y register
+    AbsY,
+    /// Indexed Indirect (d, x)
+    IndX,
+    /// Indirect Indexed (d), y
+    /// 
+    /// gee thanks motorola what a helpful name
+    /// not like there's a significant difference between how (d, x) and (d),y
+    /// work
+    /// 
+    /// ...oh wait
+    IndY,
+    /// Implicit indexing (do nothing, resolve nothing, deny everything)
+    Impl,
+    /// Use the Accumulator
+    Accum,
+    /// Don't fetch anything and use the operand as data
+    Imm,
+    /// Jump to a relative label
+    Rel,
+    /// Addressing mode specific to JMP
+    AbsInd,
+    /// The 16 address is included in the operand
+    Abs,
+}
+
 pub struct Cpu6502 {
     //region CPU Registers
 
@@ -55,8 +95,8 @@ pub struct Cpu6502 {
     /// Instructions consist of an opcode, having 1 byte, and an optional
     /// operand having 0, 1, or 2 bytes.
     /// 
-    /// The top 8 bits of this register are unused.
-    insr: u32, // top 8 unused
+    /// The last 8 bits of this register are unused.
+    opcode: u32,
 
     /// The program status register.
     status: Status,
@@ -75,8 +115,14 @@ pub struct Cpu6502 {
     /// `clock` will simply decrement this and continue.
     cycles: u8,
 
-    /// The resolved 'output' address of the instruction
+    /// The resolved address of the instruction
     addr: u16,
+
+    /// The addressing mode of the opcode being executed
+    addr_mode: AddressingMode,
+
+    /// The instruction of the opcode being executed
+    // insr: InstructionMnemonic,
     //endregion
 
     //region stuff
@@ -109,7 +155,32 @@ impl Cpu6502 {
     pub fn print_debug(&self) {
         println!("Status: {:#?}", self.status);
         println!("Acc: {:x}, X: {:x}, Y: {:x}", self.acc, self.x, self.y);
-        println!("PC: {:x}, instr: {:x}", self.pc, self.insr);
+        println!("PC: {:x}, instr: {:x}", self.pc, self.opcode);
+        let addr = self.get_addr(self.opcode);
+        println!("Addr mode: {:#?}, resolved addr: {:x}", self.addr_mode, addr);
+    }
+
+    /// Gets the address of the operand to read from.
+    /// 
+    /// # Notes
+    /// 
+    /// This does _not_ sets the `cycles` property as required for emulation!
+    /// Some instructions (like all the store instructions) have some special-
+    /// cased behavior that the 6502 datasheet details.
+    fn get_addr(&self, opcode: u32) -> u16 {
+        let ops = opcode.to_le_bytes();
+        return match self.addr_mode {
+            AddressingMode::Abs => bytes_to_addr(ops[2], ops[1]),
+            AddressingMode::AbsInd => {
+                let addr = bytes_to_addr(ops[2], ops[1]);
+                let lo = self.bus.read(addr);
+                let hi = self.bus.read(addr + 1);
+                return bytes_to_addr(hi, lo);
+            },
+            _ => {
+                panic!("Unimplemented addressing mode")
+            }
+        }
     }
 }
 
@@ -135,8 +206,9 @@ impl Cpu6502 {
             // internal state
             bus: bus,
             cycles: 0,
-            insr: 0,
+            opcode: 0,
             addr: 0,
+            addr_mode: AddressingMode::Impl,
         }
     }
 }
