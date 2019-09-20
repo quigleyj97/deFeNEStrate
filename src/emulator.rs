@@ -1,4 +1,4 @@
-// Emulator for the Motorola 6502
+// Emulator for the MOS 6502
 use std::rc::Rc;
 use crate::databus::{Bus};
 
@@ -16,7 +16,7 @@ bitflags! {
 }
 
 fn bytes_to_addr(lo: u8, hi: u8) -> u16 {
-    return ((hi as u16) % 256) * 256 + lo as u16;
+    return (hi as u16) << 8 + lo as u16;
 }
 
 #[derive(Debug)]
@@ -35,7 +35,7 @@ enum AddressingMode {
     IndX,
     /// Indirect Indexed (d), y
     /// 
-    /// gee thanks motorola what a helpful name
+    /// gee thanks MOS what a helpful name
     /// not like there's a significant difference between how (d, x) and (d),y
     /// work
     /// 
@@ -152,7 +152,7 @@ impl Cpu6502 {
         self.status &= !flag;
     }
 
-    pub fn print_debug(&self) {
+    pub fn print_debug(&mut self) {
         println!("Status: {:#?}", self.status);
         println!("Acc: {:x}, X: {:x}, Y: {:x}", self.acc, self.x, self.y);
         println!("PC: {:x}, instr: {:x}", self.pc, self.opcode);
@@ -164,23 +164,94 @@ impl Cpu6502 {
     /// 
     /// # Notes
     /// 
-    /// This does _not_ sets the `cycles` property as required for emulation!
-    /// Some instructions (like all the store instructions) have some special-
-    /// cased behavior that the 6502 datasheet details.
-    fn get_addr(&self, opcode: u32) -> u16 {
+    /// This sets the `cycles` to the average whole number of cycles any
+    /// instruction with this addressing mode will have. Other instructions may
+    /// need to add or subtract to compensate, refer to the 6502 datasheet for
+    /// details:
+    /// 
+    /// http://archive.6502.org/datasheets/mos_6501-6505_mpu_preliminary_aug_1975.pdf
+    /// 
+    /// A note on the so-called "oops" cycle: The "oops" cycle occurs when an
+    /// index instruction crosses a page boundary, as the CPU reads off the high
+    /// byte first without checking for a carry-out. Some instructions (like all
+    /// the store instructions) have some special-cased behavior that the 6502
+    /// datasheet details. These depend on the instruction being executed, but
+    /// this function is the best place to 
+    fn get_addr(&mut self, opcode: u32) -> u16 {
         let ops = opcode.to_le_bytes();
+        // +2 cycles for instr + byte1 of op readout, minimum
+        self.cycles += 2;
+
         return match self.addr_mode {
-            AddressingMode::Abs => bytes_to_addr(ops[2], ops[1]),
+            AddressingMode::Abs => {
+                self.cycles += 2;
+                bytes_to_addr(ops[2], ops[1])
+            },
             AddressingMode::AbsInd => {
                 let addr = bytes_to_addr(ops[2], ops[1]);
                 let lo = self.bus.read(addr);
                 let hi = self.bus.read(addr + 1);
+                // TODO: JMP,AbsInd should get the right # of cycles
+                self.cycles += 3;
                 return bytes_to_addr(hi, lo);
             },
-            _ => {
-                panic!("Unimplemented addressing mode")
-            }
+            AddressingMode::AbsX => {
+                let addr = bytes_to_addr(ops[2], ops[1]) + self.x as u16;
+                if (self.x as u16 + ops[1] as u16) & 0x0100 == 0x0100 {
+                    self.cycles += 1; // oops cycle
+                }
+                self.cycles += 3;
+                return addr;
+            },
+            AddressingMode::AbsY => {
+                let addr = bytes_to_addr(ops[2], ops[1]) + self.y as u16;
+                if (self.y as u16 + ops[1] as u16) & 0x0100 == 0x0100 {
+                    self.cycles += 1; // oops cycle
+                }
+                self.cycles += 3;
+                return addr;
+            },
+            AddressingMode::Accum => {
+                // TODO: Make addressing Optional?
+                return 0x0000;
+            },
+            AddressingMode::Imm => {
+                return 0x0000;
+            },
+            AddressingMode::Impl => {
+                return 0x0000;
+            },
+            AddressingMode::IndX => {
+                let lo = self.read_bus((ops[1] + self.x) as u16);
+                let hi = self.read_bus((ops[1] + self.x + 1) as u16);
+                self.cycles += 2;
+                return bytes_to_addr(lo, hi);
+            },
+            AddressingMode::IndY => {
+                let lo = self.read_bus(ops[1] as u16);
+                // wrap cast to make sure Rust doesn't expand either op prematurely
+                let hi = self.read_bus(((ops[1] + 1) as u8) as u16);
+                self.cycles += 1;
+                if (self.y as u16 + ops[1] as u16) & 0x0100 == 0x0100 {
+                    self.cycles += 1; // oops cycle
+                }
+                return bytes_to_addr(lo, hi) + self.y as u16;
+            },
+            AddressingMode::Rel => {
+                return self.pc + (ops[1] as u16);
+            },
+            AddressingMode::ZP => {
+                return bytes_to_addr(ops[1], 0);
+            },
+            AddressingMode::ZPX => bytes_to_addr(ops[1] + self.x, 0),
+            AddressingMode::ZPY => bytes_to_addr(ops[1] + self.y, 0)
         }
+    }
+
+    /// Read a byte from the bus, adding one to the cycle time
+    fn read_bus(&mut self, addr: u16) -> u8 {
+        self.cycles += 1;
+        return self.bus.read(addr);
     }
 }
 
