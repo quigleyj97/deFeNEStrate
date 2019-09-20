@@ -13,7 +13,9 @@ fn main() {
     let mut cpu = emulator::Cpu6502::new(busref);
     println!("CPU initialized");
 
-    cpu.print_debug();
+    println!("{}", cpu);
     cpu.tick();
+    println!("{}", cpu);
     cpu.reset();
+    println!("{}", cpu);
 }

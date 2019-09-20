@@ -1,5 +1,7 @@
 // Emulator for the MOS 6502
 use std::rc::Rc;
+use std::fmt;
+
 use crate::databus::{Bus};
 
 bitflags! {
@@ -115,6 +117,14 @@ pub struct Cpu6502 {
     /// `clock` will simply decrement this and continue.
     cycles: u8,
 
+    /// The total number of cycles that this CPU has ran
+    ///
+    /// # Note
+    /// 
+    /// This is allowed to overflow, as it's only used for debugging and test
+    /// comparison. It is not a part of core emulation.
+    tot_cycles: u32,
+
     /// The resolved address of the instruction
     addr: u16,
 
@@ -131,6 +141,7 @@ pub struct Cpu6502 {
 
 impl Cpu6502 {
     pub fn tick(&mut self) {
+        self.tot_cycles += 1;
         if self.cycles > 0 {
             self.cycles -= 1;
             return;
@@ -150,14 +161,6 @@ impl Cpu6502 {
 
     pub fn clear_flag(&mut self, flag: Status) {
         self.status &= !flag;
-    }
-
-    pub fn print_debug(&mut self) {
-        println!("Status: {:#?}", self.status);
-        println!("Acc: {:x}, X: {:x}, Y: {:x}", self.acc, self.x, self.y);
-        println!("PC: {:x}, instr: {:x}", self.pc, self.opcode);
-        let addr = self.get_addr(self.opcode);
-        println!("Addr mode: {:#?}, resolved addr: {:x}", self.addr_mode, addr);
     }
 
     /// Gets the address of the operand to read from.
@@ -269,17 +272,53 @@ impl Cpu6502 {
             x: 0,
             y: 0,
             stack: 0xFD,
-            pc: 0,
+            pc: 0xC000,
             // IRQ disabled
             // Unwrapping b/c this is a constant and should be OK
-            status: Status::from_bits(0x34).unwrap(), 
+            status: Status::from_bits(0x24).unwrap(), 
 
             // internal state
             bus: bus,
             cycles: 0,
+            tot_cycles: 0,
             opcode: 0,
             addr: 0,
             addr_mode: AddressingMode::Impl,
         }
+    }
+}
+
+impl fmt::Display for Cpu6502 {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let opcodes = self.opcode.to_le_bytes();
+        let ops = match self.addr_mode {
+            AddressingMode::Abs
+                | AddressingMode::AbsX
+                | AddressingMode::AbsY
+                | AddressingMode::AbsInd => format!(
+                    "{:2X} {:2X} {:2X}",
+                    opcodes[0],
+                    opcodes[1],
+                    opcodes[2]
+            ),
+            AddressingMode::Accum | AddressingMode::Impl => format!("{:8<2X}", opcodes[0]),
+            _ => format!("{:2X} {:2X}   ", opcodes[0], opcodes[1])
+        };
+        write!(
+            f,
+            //PC     Ops   Inst Accum    X reg    Y reg    Status   Stack     PPU.row...line  tot_cycles
+            "{:04X}  {:8}  {:32}A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{:>3},{:>3} CYC:{}",
+            self.pc,
+            ops,
+            "FAKE INSTR", //TODO: we need a way of formatting decoded instructions
+            self.acc,
+            self.x,
+            self.y,
+            self.status,
+            self.stack,
+            0,
+            0,
+            self.tot_cycles
+        )
     }
 }
