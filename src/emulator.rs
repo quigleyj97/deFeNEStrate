@@ -112,6 +112,8 @@ impl Cpu6502 {
         }
 
         // execute instruction
+        self.decode_opcode(self.opcode);
+        self.addr = self.get_addr(self.opcode);
     }
 
     pub fn reset(&mut self) {
@@ -125,6 +127,79 @@ impl Cpu6502 {
 
     pub fn clear_flag(&mut self, flag: Status) {
         self.status &= !flag;
+    }
+
+    /// Decodes an instruction into it's opcode and operand.
+    ///
+    /// # Notes
+    ///
+    /// Uses an algorithm described here: http://nparker.llx.com/a2/opcodes.html
+    ///
+    /// This may have errors or omissions for the NES 2A03, as that CPU's
+    /// undocumented opcodes may be different in important ways.
+    fn decode_opcode(&mut self, instruction: u32) {
+        let ops = instruction.to_le_bytes();
+
+        // Instructions are structured as:
+        //   0......7 8..........15 16.........23
+        //   aaabbbcc <lo operand?> <hi operand?>
+        //
+        // The `cc` bits differentiate between a few subtables. The `aaa` bits
+        // determine the opcode, and the `bbb` bits determine the addrssing
+        // mode. `cc` never takes the form `11`.
+
+        let subtable = ops[0] & 0x3;
+        let addr_mode = ops[0] & 0x1c;
+        // let opcode = ops[0] & 0xe0;
+
+        match subtable {
+            0b01 => {
+                self.addr_mode = match addr_mode {
+                    0b000 => AddressingMode::IndX,
+                    0b001 => AddressingMode::ZP,
+                    0b010 => AddressingMode::Imm,
+                    0b011 => AddressingMode::Abs,
+                    0b100 => AddressingMode::IndY,
+                    0b101 => AddressingMode::ZPX,
+                    0b110 => AddressingMode::AbsY,
+                    0b111 => AddressingMode::AbsX,
+                    _ => panic!("Invalid addressing mode")
+                }
+                // opcode
+            }
+            0b10 => {
+                // TODO: STX and LDX use Y, not X
+                let use_y = true;
+                self.addr_mode = match addr_mode {
+                    0b000 => AddressingMode::Imm,
+                    0b001 => AddressingMode::ZP,
+                    0b010 => AddressingMode::Accum,
+                    0b011 => AddressingMode::Abs,
+                    // skip 0b100 (branch instr)
+                    0b101 => if use_y { AddressingMode::ZPY } else { AddressingMode::ZPX },
+                    // skip 0b110
+                    0b111 => if use_y { AddressingMode::AbsY } else { AddressingMode::AbsX },
+                    _ => panic!("Invalid addressing mode")
+                }
+                // opcode
+            }
+            0b00 => {
+                self.addr_mode = match addr_mode {
+                    0b000 => AddressingMode::Imm,
+                    0b001 => AddressingMode::ZP,
+                    // skip 0b010
+                    0b011 => AddressingMode::Abs,
+                    // skip 0b100 (branch instr)
+                    0b101 => AddressingMode::ZPX,
+                    // skip 0b110
+                    0b111 => AddressingMode::AbsX,
+                    _ => panic!("Invalid addressing mode")
+                }
+                // opcode
+            }
+            0b11 => {}
+            _ => panic!("Invalid instruction"),
+        }
     }
 
     /// Gets the address of the operand to read from.
