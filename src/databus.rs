@@ -5,7 +5,7 @@ pub struct Bus {
 impl Bus {
     /// Read from the Bus at the given address.
     pub fn read(&self, addr: u16) -> u8 {
-        return self.data[addr as usize];
+        self.data[addr as usize]
     }
 
     /// Write to the Bus at the given address.
@@ -16,8 +16,8 @@ impl Bus {
 
 impl Bus {
     pub fn new() -> Bus {
-        return Bus {
+        Bus {
             data: Box::new([0; 65_535]),
-        };
+        }
     }
 }

@@ -18,7 +18,7 @@ bitflags! {
 }
 
 fn bytes_to_addr(lo: u8, hi: u8) -> u16 {
-    return (hi as u16) << 8 + lo as u16;
+    u16::from(hi) << (8 + u16::from(lo))
 }
 
 #[derive(Debug)]
@@ -184,7 +184,7 @@ impl Cpu6502 {
         // +2 cycles for instr + byte1 of op readout, minimum
         self.cycles += 2;
 
-        return match self.addr_mode {
+        match self.addr_mode {
             AddressingMode::Abs => {
                 self.cycles += 2;
                 bytes_to_addr(ops[2], ops[1])
@@ -195,65 +195,65 @@ impl Cpu6502 {
                 let hi = self.bus.read(addr + 1);
                 // TODO: JMP,AbsInd should get the right # of cycles
                 self.cycles += 3;
-                return bytes_to_addr(hi, lo);
+                bytes_to_addr(hi, lo)
             }
             AddressingMode::AbsX => {
-                let addr = bytes_to_addr(ops[2], ops[1]) + self.x as u16;
-                if (self.x as u16 + ops[1] as u16) & 0x0100 == 0x0100 {
+                let addr = bytes_to_addr(ops[2], ops[1]) + u16::from(self.x);
+                if (u16::from(self.x) + u16::from(ops[1])) & 0x0100 == 0x0100 {
                     self.cycles += 1; // oops cycle
                 }
                 self.cycles += 3;
-                return addr;
+                addr
             }
             AddressingMode::AbsY => {
-                let addr = bytes_to_addr(ops[2], ops[1]) + self.y as u16;
-                if (self.y as u16 + ops[1] as u16) & 0x0100 == 0x0100 {
+                let addr = bytes_to_addr(ops[2], ops[1]) + u16::from(self.y);
+                if (u16::from(self.y) + u16::from(ops[1])) & 0x0100 == 0x0100 {
                     self.cycles += 1; // oops cycle
                 }
                 self.cycles += 3;
-                return addr;
+                addr
             }
             AddressingMode::Accum => {
                 // TODO: Make addressing Optional?
-                return 0x0000;
+                0x0000
             }
             AddressingMode::Imm => {
-                return 0x0000;
+                0x0000
             }
             AddressingMode::Impl => {
-                return 0x0000;
+                0x0000
             }
             AddressingMode::IndX => {
-                let lo = self.read_bus((ops[1] + self.x) as u16);
-                let hi = self.read_bus((ops[1] + self.x + 1) as u16);
+                let lo = self.read_bus(u16::from(ops[1] + self.x));
+                let hi = self.read_bus(u16::from(ops[1] + self.x + 1));
                 self.cycles += 2;
-                return bytes_to_addr(lo, hi);
+                bytes_to_addr(lo, hi)
             }
             AddressingMode::IndY => {
-                let lo = self.read_bus(ops[1] as u16);
+                let lo = self.read_bus(u16::from(ops[1]));
                 // wrap cast to make sure Rust doesn't expand either op prematurely
-                let hi = self.read_bus(((ops[1] + 1) as u8) as u16);
+                let hi = self.read_bus(u16::from((ops[1] + 1) as u8));
                 self.cycles += 1;
-                if (self.y as u16 + ops[1] as u16) & 0x0100 == 0x0100 {
+                if (u16::from(self.y) + u16::from(ops[1])) & 0x0100 == 0x0100 {
                     self.cycles += 1; // oops cycle
                 }
-                return bytes_to_addr(lo, hi) + self.y as u16;
+                bytes_to_addr(lo, hi) + u16::from(self.y)
             }
             AddressingMode::Rel => {
-                return self.pc + (ops[1] as u16);
+                self.pc + u16::from(ops[1])
             }
             AddressingMode::ZP => {
-                return bytes_to_addr(ops[1], 0);
+                bytes_to_addr(ops[1], 0)
             }
             AddressingMode::ZPX => bytes_to_addr(ops[1] + self.x, 0),
             AddressingMode::ZPY => bytes_to_addr(ops[1] + self.y, 0),
-        };
+        }
     }
 
     /// Read a byte from the bus, adding one to the cycle time
     fn read_bus(&mut self, addr: u16) -> u8 {
         self.cycles += 1;
-        return self.bus.read(addr);
+        self.bus.read(addr)
     }
 }
 
@@ -266,7 +266,7 @@ impl Cpu6502 {
     /// Default values are the NES power-up vals
     /// cf. http://wiki.nesdev.com/w/index.php/CPU_power_up_state
     pub fn new(bus: Rc<Bus>) -> Cpu6502 {
-        return Cpu6502 {
+        Cpu6502 {
             acc: 0,
             x: 0,
             y: 0,
@@ -277,13 +277,13 @@ impl Cpu6502 {
             status: Status::from_bits(0x24).unwrap(),
 
             // internal state
-            bus: bus,
+            bus,
             cycles: 0,
             tot_cycles: 0,
             opcode: 0,
             addr: 0,
             addr_mode: AddressingMode::Impl,
-        };
+        }
     }
 }
 
