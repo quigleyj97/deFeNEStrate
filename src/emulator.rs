@@ -3,6 +3,7 @@ use std::fmt;
 use std::rc::Rc;
 
 use crate::databus::Bus;
+use crate::structs::{AddressingMode};
 
 bitflags! {
     pub struct Status: u8 {
@@ -19,42 +20,6 @@ bitflags! {
 
 fn bytes_to_addr(lo: u8, hi: u8) -> u16 {
     u16::from(hi) << (8 + u16::from(lo))
-}
-
-#[derive(Debug)]
-enum AddressingMode {
-    /// Zero-Page
-    ZP,
-    /// Zero-Page Indexed, X register
-    ZPX,
-    /// Zero-Page Indexed, Y register
-    ZPY,
-    /// Absolute Indexed, plus X register
-    AbsX,
-    /// Absolute Indexed, plus Y register
-    AbsY,
-    /// Indexed Indirect (d, x)
-    IndX,
-    /// Indirect Indexed (d), y
-    ///
-    /// gee thanks MOS what a helpful name
-    /// not like there's a significant difference between how (d, x) and (d),y
-    /// work
-    ///
-    /// ...oh wait
-    IndY,
-    /// Implicit indexing (do nothing, resolve nothing, deny everything)
-    Impl,
-    /// Use the Accumulator
-    Accum,
-    /// Don't fetch anything and use the operand as data
-    Imm,
-    /// Jump to a relative label
-    Rel,
-    /// Addressing mode specific to JMP
-    AbsInd,
-    /// The 16 address is included in the operand
-    Abs,
 }
 
 pub struct Cpu6502 {

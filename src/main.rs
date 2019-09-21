@@ -3,6 +3,7 @@ extern crate bitflags;
 
 mod databus;
 mod emulator;
+mod structs;
 
 use std::rc::Rc;
 
