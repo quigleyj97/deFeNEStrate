@@ -15,7 +15,12 @@ fn main() {
     println!("CPU initialized");
 
     println!("{}", cpu);
-    cpu.tick();
+    cpu.exec();
+    loop {
+        let cycles = cpu.tick();
+        println!("spinning");
+        if cycles { break; }
+    }
     println!("{}", cpu);
     cpu.reset();
     println!("{}", cpu);

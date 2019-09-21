@@ -19,7 +19,7 @@ bitflags! {
 }
 
 fn bytes_to_addr(lo: u8, hi: u8) -> u16 {
-    u16::from(hi) << (8 + u16::from(lo))
+    (u16::from(hi) << 8) + u16::from(lo)
 }
 
 pub struct Cpu6502 {
@@ -105,16 +105,19 @@ pub struct Cpu6502 {
 }
 
 impl Cpu6502 {
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self) -> bool {
         self.tot_cycles += 1;
         if self.cycles > 0 {
             self.cycles -= 1;
-            return;
+            return false;
         }
+        true
+    }
 
-        // execute instruction
+    pub fn exec(&mut self) {
         self.decode_opcode(self.instruction);
         self.addr = self.get_addr(self.instruction);
+        self.pc += 1;
     }
 
     pub fn reset(&mut self) {
@@ -206,8 +209,8 @@ impl Cpu6502 {
         };
 
         let subtable = ops[0] & 0x3;
-        let addr_mode = ops[0] & 0x1c;
-        let opcode = ops[0] & 0xe0;
+        let addr_mode = (ops[0] & 0x1c) >> 2;
+        let opcode = (ops[0] & 0xe0) >> 5;
 
         match subtable {
             0b01 => {
@@ -452,7 +455,7 @@ impl Cpu6502 {
             bus,
             cycles: 0,
             tot_cycles: 0,
-            instruction: 0,
+            instruction: 0xEA,
             addr: 0,
             addr_mode: AddressingMode::Impl,
             instr: Instruction::NOP,
@@ -471,13 +474,30 @@ impl fmt::Display for Cpu6502 {
             AddressingMode::Accum | AddressingMode::Impl => format!("{:8<2X}", bytes[0]),
             _ => format!("{:2X} {:2X}   ", bytes[0], bytes[1]),
         };
+
+        // std::fmt's Hex impls use big endian, so translate to account for that
+        let operand_be_bytes = bytes_to_addr(bytes[1], bytes[2]).swap_bytes();
+        let data = self.bus.read(self.addr);
+        let addr_be_bytes = self.addr.swap_bytes();
+        let instr = match self.addr_mode {
+            AddressingMode::Abs => format!("{:3?} ${:04X}", self.instr, addr_be_bytes),
+            AddressingMode::AbsX => format!("{:3?} ${:04X},X @ {:04X} = {:02X}", self.instr, operand_be_bytes, addr_be_bytes, data),
+            AddressingMode::AbsY => format!("{:3?} ${:04X},Y @ {:04X} = {:02X}", self.instr, operand_be_bytes, addr_be_bytes, data),
+            AddressingMode::AbsInd => format!("{:3?} (${:04X}) = {:04X}", self.instr, operand_be_bytes, addr_be_bytes),
+            AddressingMode::Imm => format!("{:3?} #${:02X}", self.instr, data),
+            AddressingMode::ZP => format!("{:3?} ${:04X} = {:02X}", self.instr, bytes[1], data),
+            AddressingMode::ZPX => format!("{:3?} ${:04X},X @ {:02X} = {:02X}", self.instr, bytes[1], self.x, addr_be_bytes),
+            AddressingMode::ZPY => format!("{:3?} ${:04X},Y @ {:02X} = {:02X}", self.instr, bytes[1], self.y, addr_be_bytes),
+            AddressingMode::Impl => format!("{:3?}", self.instr),
+            _ => format!("{:3?} {:02X} {:02X} <TODO>", self.instr, bytes[1], bytes[2])
+        };
         write!(
             f,
             //PC     Ops   Inst Accum    X reg    Y reg    Status   Stack     PPU.row...line  tot_cycles
             "{:04X}  {:8}  {:32}A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{:>3},{:>3} CYC:{}",
             self.pc,
             ops,
-            "FAKE INSTR", //TODO: we need a way of formatting decoded instructions
+            instr,
             self.acc,
             self.x,
             self.y,
