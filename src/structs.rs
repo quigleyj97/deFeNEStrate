@@ -49,7 +49,6 @@ pub enum Instruction {
     BIT,
 
     //region Branch instructions
-
     /// Branch on PLus
     BPL,
     /// Branch on MInus
@@ -67,7 +66,6 @@ pub enum Instruction {
     /// Branch on EQual
     BEQ,
     //endregion
-
     /// BReaK
     BRK,
     /// CoMPare acc
@@ -97,7 +95,6 @@ pub enum Instruction {
     /// SEt Decimal
     SED,
     //endregion
-
     /// INCrement memory
     INC,
     /// JuMP
@@ -152,7 +149,6 @@ pub enum Instruction {
     // they would actually work as arithmetic shifts (ignoring Carry). This
     // was fixed long before the NES, and so this emulation doesn't implement
     // that bug.
-
     /// ROtate Left
     ROL,
     /// ROtate Right
@@ -160,13 +156,11 @@ pub enum Instruction {
     //endregion
 
     //region Returns
-
     /// ReTurn from Interrupt
     RTI,
     /// ReTurn from Subroutine
     RTS,
     //endregion
-
     /// SuBtract with Carry*
     SBC,
 
@@ -193,5 +187,4 @@ pub enum Instruction {
     /// PuLl Processor status
     PLP,
     //endregion
-
 }

@@ -156,28 +156,52 @@ impl Cpu6502 {
                 self.instr = Instruction::BRK;
                 self.addr_mode = AddressingMode::Impl;
                 return;
-            },
+            }
             0x20 => {
                 self.instr = Instruction::JSR;
                 self.addr_mode = AddressingMode::Abs;
                 return;
-            },
+            }
             0x40 => {
                 self.instr = Instruction::RTI;
                 self.addr_mode = AddressingMode::Impl;
                 return;
-            },
+            }
             0x6C => {
                 self.instr = Instruction::RTS;
                 self.addr_mode = AddressingMode::AbsInd;
                 return;
-            },
-            0x8A => { self.addr_mode = AddressingMode::Impl; self.instr = Instruction::TXA; return; },
-            0x9A => { self.addr_mode = AddressingMode::Impl; self.instr = Instruction::TXS; return; },
-            0xAA => { self.addr_mode = AddressingMode::Impl; self.instr = Instruction::TAX; return; },
-            0xBA => { self.addr_mode = AddressingMode::Impl; self.instr = Instruction::TSX; return; },
-            0xCA => { self.addr_mode = AddressingMode::Impl; self.instr = Instruction::DEX; return; },
-            0xEA => { self.addr_mode = AddressingMode::Impl; self.instr = Instruction::NOP; return; },
+            }
+            0x8A => {
+                self.addr_mode = AddressingMode::Impl;
+                self.instr = Instruction::TXA;
+                return;
+            }
+            0x9A => {
+                self.addr_mode = AddressingMode::Impl;
+                self.instr = Instruction::TXS;
+                return;
+            }
+            0xAA => {
+                self.addr_mode = AddressingMode::Impl;
+                self.instr = Instruction::TAX;
+                return;
+            }
+            0xBA => {
+                self.addr_mode = AddressingMode::Impl;
+                self.instr = Instruction::TSX;
+                return;
+            }
+            0xCA => {
+                self.addr_mode = AddressingMode::Impl;
+                self.instr = Instruction::DEX;
+                return;
+            }
+            0xEA => {
+                self.addr_mode = AddressingMode::Impl;
+                self.instr = Instruction::NOP;
+                return;
+            }
             _ => {}
         };
 
@@ -196,7 +220,7 @@ impl Cpu6502 {
                     0b101 => Instruction::LDA,
                     0b110 => Instruction::CMP,
                     0b111 => Instruction::SBC,
-                    _ => panic!("Invalid opcode")
+                    _ => panic!("Invalid opcode"),
                 };
                 self.addr_mode = match addr_mode {
                     0b000 => AddressingMode::IndX,
@@ -207,7 +231,7 @@ impl Cpu6502 {
                     0b101 => AddressingMode::ZPX,
                     0b110 => AddressingMode::AbsY,
                     0b111 => AddressingMode::AbsX,
-                    _ => panic!("Invalid addressing mode")
+                    _ => panic!("Invalid addressing mode"),
                 };
             }
             0b10 => {
@@ -220,7 +244,7 @@ impl Cpu6502 {
                     0b101 => Instruction::LDX,
                     0b110 => Instruction::DEC,
                     0b111 => Instruction::INC,
-                    _ => panic!("Invalid opcode")
+                    _ => panic!("Invalid opcode"),
                 };
                 // the STX and LDX instructions should target the Y index register instead
                 let use_y = self.instr == Instruction::STX || self.instr == Instruction::LDX;
@@ -230,10 +254,22 @@ impl Cpu6502 {
                     0b010 => AddressingMode::Accum,
                     0b011 => AddressingMode::Abs,
                     // skip 0b100 (branch instr)
-                    0b101 => if use_y { AddressingMode::ZPY } else { AddressingMode::ZPX },
+                    0b101 => {
+                        if use_y {
+                            AddressingMode::ZPY
+                        } else {
+                            AddressingMode::ZPX
+                        }
+                    }
                     // skip 0b110 (single byte instr)
-                    0b111 => if use_y { AddressingMode::AbsY } else { AddressingMode::AbsX },
-                    _ => panic!("Invalid addressing mode")
+                    0b111 => {
+                        if use_y {
+                            AddressingMode::AbsY
+                        } else {
+                            AddressingMode::AbsX
+                        }
+                    }
+                    _ => panic!("Invalid addressing mode"),
                 }
             }
             0b00 => {
@@ -258,7 +294,7 @@ impl Cpu6502 {
                         0xD => Instruction::CLD,
                         0xE => Instruction::INX,
                         0xF => Instruction::SED,
-                        _ => panic!("Invalid instruction")
+                        _ => panic!("Invalid instruction"),
                     };
                     return;
                 }
@@ -275,7 +311,7 @@ impl Cpu6502 {
                         0b101 => Instruction::BCS,
                         0b110 => Instruction::BNE,
                         0b111 => Instruction::BEQ,
-                        _ => panic!("Invalid opcode")
+                        _ => panic!("Invalid opcode"),
                     };
                 }
                 self.instr = match opcode {
@@ -287,7 +323,7 @@ impl Cpu6502 {
                     0b101 => Instruction::LDY,
                     0b110 => Instruction::CPY,
                     0b111 => Instruction::CPX,
-                    _ => panic!("Invalid opcode")
+                    _ => panic!("Invalid opcode"),
                 };
                 self.addr_mode = match addr_mode {
                     0b000 => AddressingMode::Imm,
@@ -298,7 +334,7 @@ impl Cpu6502 {
                     0b101 => AddressingMode::ZPX,
                     // skip 0b110
                     0b111 => AddressingMode::AbsX,
-                    _ => panic!("Invalid addressing mode")
+                    _ => panic!("Invalid addressing mode"),
                 }
             }
             0b11 => {}
@@ -361,12 +397,8 @@ impl Cpu6502 {
                 // TODO: Make addressing Optional?
                 0x0000
             }
-            AddressingMode::Imm => {
-                0x0000
-            }
-            AddressingMode::Impl => {
-                0x0000
-            }
+            AddressingMode::Imm => 0x0000,
+            AddressingMode::Impl => 0x0000,
             AddressingMode::IndX => {
                 let lo = self.read_bus(u16::from(ops[1] + self.x));
                 let hi = self.read_bus(u16::from(ops[1] + self.x + 1));
@@ -383,12 +415,8 @@ impl Cpu6502 {
                 }
                 bytes_to_addr(lo, hi) + u16::from(self.y)
             }
-            AddressingMode::Rel => {
-                self.pc + u16::from(ops[1])
-            }
-            AddressingMode::ZP => {
-                bytes_to_addr(ops[1], 0)
-            }
+            AddressingMode::Rel => self.pc + u16::from(ops[1]),
+            AddressingMode::ZP => bytes_to_addr(ops[1], 0),
             AddressingMode::ZPX => bytes_to_addr(ops[1] + self.x, 0),
             AddressingMode::ZPY => bytes_to_addr(ops[1] + self.y, 0),
         }
@@ -439,9 +467,7 @@ impl fmt::Display for Cpu6502 {
             AddressingMode::Abs
             | AddressingMode::AbsX
             | AddressingMode::AbsY
-            | AddressingMode::AbsInd => {
-                format!("{:2X} {:2X} {:2X}", bytes[0], bytes[1], bytes[2])
-            }
+            | AddressingMode::AbsInd => format!("{:2X} {:2X} {:2X}", bytes[0], bytes[1], bytes[2]),
             AddressingMode::Accum | AddressingMode::Impl => format!("{:8<2X}", bytes[0]),
             _ => format!("{:2X} {:2X}   ", bytes[0], bytes[1]),
         };
