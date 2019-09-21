@@ -3,7 +3,7 @@ use std::fmt;
 use std::rc::Rc;
 
 use crate::databus::Bus;
-use crate::structs::{AddressingMode};
+use crate::structs::{AddressingMode, Instruction};
 
 bitflags! {
     pub struct Status: u8 {
@@ -59,10 +59,11 @@ pub struct Cpu6502 {
     /// # Note
     ///
     /// Instructions consist of an opcode, having 1 byte, and an optional
-    /// operand having 0, 1, or 2 bytes.
+    /// operand having 1 or 2 bytes (depending on the instruction and addressing
+    /// mode).
     ///
     /// The last 8 bits of this register are unused.
-    opcode: u32,
+    instruction: u32,
 
     /// The program status register.
     status: Status,
@@ -95,8 +96,8 @@ pub struct Cpu6502 {
     /// The addressing mode of the opcode being executed
     addr_mode: AddressingMode,
 
-    /// The instruction of the opcode being executed
-    // insr: InstructionMnemonic,
+    /// The opcode being executed
+    instr: Instruction,
     //endregion
 
     //region stuff
@@ -112,8 +113,8 @@ impl Cpu6502 {
         }
 
         // execute instruction
-        self.decode_opcode(self.opcode);
-        self.addr = self.get_addr(self.opcode);
+        self.decode_opcode(self.instruction);
+        self.addr = self.get_addr(self.instruction);
     }
 
     pub fn reset(&mut self) {
@@ -219,8 +220,8 @@ impl Cpu6502 {
     /// the store instructions) have some special-cased behavior that the 6502
     /// datasheet details. These depend on the instruction being executed, but
     /// this function is the best place to
-    fn get_addr(&mut self, opcode: u32) -> u16 {
-        let ops = opcode.to_le_bytes();
+    fn get_addr(&mut self, instruction: u32) -> u16 {
+        let ops = instruction.to_le_bytes();
         // +2 cycles for instr + byte1 of op readout, minimum
         self.cycles += 2;
 
@@ -320,25 +321,26 @@ impl Cpu6502 {
             bus,
             cycles: 0,
             tot_cycles: 0,
-            opcode: 0,
+            instruction: 0,
             addr: 0,
             addr_mode: AddressingMode::Impl,
+            instr: Instruction::NOP,
         }
     }
 }
 
 impl fmt::Display for Cpu6502 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let opcodes = self.opcode.to_le_bytes();
+        let bytes = self.instruction.to_le_bytes();
         let ops = match self.addr_mode {
             AddressingMode::Abs
             | AddressingMode::AbsX
             | AddressingMode::AbsY
             | AddressingMode::AbsInd => {
-                format!("{:2X} {:2X} {:2X}", opcodes[0], opcodes[1], opcodes[2])
+                format!("{:2X} {:2X} {:2X}", bytes[0], bytes[1], bytes[2])
             }
-            AddressingMode::Accum | AddressingMode::Impl => format!("{:8<2X}", opcodes[0]),
-            _ => format!("{:2X} {:2X}   ", opcodes[0], opcodes[1]),
+            AddressingMode::Accum | AddressingMode::Impl => format!("{:8<2X}", bytes[0]),
+            _ => format!("{:2X} {:2X}   ", bytes[0], bytes[1]),
         };
         write!(
             f,
