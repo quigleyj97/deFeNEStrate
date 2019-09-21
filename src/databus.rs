@@ -1,5 +1,5 @@
 pub struct Bus {
-    data: Box<[u8]>
+    data: Box<[u8]>,
 }
 
 impl Bus {
@@ -17,7 +17,7 @@ impl Bus {
 impl Bus {
     pub fn new() -> Bus {
         return Bus {
-            data: Box::new([0; 65_535])
-        }
+            data: Box::new([0; 65_535]),
+        };
     }
 }

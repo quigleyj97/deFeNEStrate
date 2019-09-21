@@ -1,8 +1,8 @@
 // Emulator for the MOS 6502
-use std::rc::Rc;
 use std::fmt;
+use std::rc::Rc;
 
-use crate::databus::{Bus};
+use crate::databus::Bus;
 
 bitflags! {
     pub struct Status: u8 {
@@ -36,11 +36,11 @@ enum AddressingMode {
     /// Indexed Indirect (d, x)
     IndX,
     /// Indirect Indexed (d), y
-    /// 
+    ///
     /// gee thanks MOS what a helpful name
     /// not like there's a significant difference between how (d, x) and (d),y
     /// work
-    /// 
+    ///
     /// ...oh wait
     IndY,
     /// Implicit indexing (do nothing, resolve nothing, deny everything)
@@ -59,7 +59,6 @@ enum AddressingMode {
 
 pub struct Cpu6502 {
     //region CPU Registers
-
     /// The Accumulator register
     acc: u8,
 
@@ -70,33 +69,33 @@ pub struct Cpu6502 {
     y: u8,
 
     /// The stack pointer
-    /// 
+    ///
     /// # Note
-    /// 
+    ///
     /// This register is a pointer to a location in memory on the first page
     /// ($01XX) of memory. The 6502 uses a bottom-up stack, so the 'first'
     /// location on the stack is `$01FF` and the 'last' is `$0100`.
-    /// 
+    ///
     /// Stack _overflow_ occurs when the stack pointer decreases all the way to
     /// $00 and wraps around to $FF (the beginning). _Underflow_ occurs the
     /// other way around, from $FF to $00.
-    stack: u8, 
+    stack: u8,
 
     /// The program counter
-    /// 
+    ///
     /// # Note
-    /// 
+    ///
     /// This is incremented by the emulator after executing each instruction,
     /// and refers to the address in memory of the next instruction
     pc: u16,
 
     /// The instruction being executed.
-    /// 
+    ///
     /// # Note
-    /// 
+    ///
     /// Instructions consist of an opcode, having 1 byte, and an optional
     /// operand having 0, 1, or 2 bytes.
-    /// 
+    ///
     /// The last 8 bits of this register are unused.
     opcode: u32,
 
@@ -108,9 +107,9 @@ pub struct Cpu6502 {
     // The variables below are used as internal state by the emulator, and
     // are unrelated to the 6502.
     /// The number of cycles to wait before executing the next instruction.
-    /// 
+    ///
     /// # Note
-    /// 
+    ///
     /// On the 6502, most instructions took longer than 1 clock cycle. Some
     /// took quite a few more, as the instruction had to read off operands
     /// from memory. This is a counter to simulate that- if not zero,
@@ -120,7 +119,7 @@ pub struct Cpu6502 {
     /// The total number of cycles that this CPU has ran
     ///
     /// # Note
-    /// 
+    ///
     /// This is allowed to overflow, as it's only used for debugging and test
     /// comparison. It is not a part of core emulation.
     tot_cycles: u32,
@@ -164,22 +163,22 @@ impl Cpu6502 {
     }
 
     /// Gets the address of the operand to read from.
-    /// 
+    ///
     /// # Notes
-    /// 
+    ///
     /// This sets the `cycles` to the average whole number of cycles any
     /// instruction with this addressing mode will have. Other instructions may
     /// need to add or subtract to compensate, refer to the 6502 datasheet for
     /// details:
-    /// 
+    ///
     /// http://archive.6502.org/datasheets/mos_6501-6505_mpu_preliminary_aug_1975.pdf
-    /// 
+    ///
     /// A note on the so-called "oops" cycle: The "oops" cycle occurs when an
     /// index instruction crosses a page boundary, as the CPU reads off the high
     /// byte first without checking for a carry-out. Some instructions (like all
     /// the store instructions) have some special-cased behavior that the 6502
     /// datasheet details. These depend on the instruction being executed, but
-    /// this function is the best place to 
+    /// this function is the best place to
     fn get_addr(&mut self, opcode: u32) -> u16 {
         let ops = opcode.to_le_bytes();
         // +2 cycles for instr + byte1 of op readout, minimum
@@ -189,7 +188,7 @@ impl Cpu6502 {
             AddressingMode::Abs => {
                 self.cycles += 2;
                 bytes_to_addr(ops[2], ops[1])
-            },
+            }
             AddressingMode::AbsInd => {
                 let addr = bytes_to_addr(ops[2], ops[1]);
                 let lo = self.bus.read(addr);
@@ -197,7 +196,7 @@ impl Cpu6502 {
                 // TODO: JMP,AbsInd should get the right # of cycles
                 self.cycles += 3;
                 return bytes_to_addr(hi, lo);
-            },
+            }
             AddressingMode::AbsX => {
                 let addr = bytes_to_addr(ops[2], ops[1]) + self.x as u16;
                 if (self.x as u16 + ops[1] as u16) & 0x0100 == 0x0100 {
@@ -205,7 +204,7 @@ impl Cpu6502 {
                 }
                 self.cycles += 3;
                 return addr;
-            },
+            }
             AddressingMode::AbsY => {
                 let addr = bytes_to_addr(ops[2], ops[1]) + self.y as u16;
                 if (self.y as u16 + ops[1] as u16) & 0x0100 == 0x0100 {
@@ -213,23 +212,23 @@ impl Cpu6502 {
                 }
                 self.cycles += 3;
                 return addr;
-            },
+            }
             AddressingMode::Accum => {
                 // TODO: Make addressing Optional?
                 return 0x0000;
-            },
+            }
             AddressingMode::Imm => {
                 return 0x0000;
-            },
+            }
             AddressingMode::Impl => {
                 return 0x0000;
-            },
+            }
             AddressingMode::IndX => {
                 let lo = self.read_bus((ops[1] + self.x) as u16);
                 let hi = self.read_bus((ops[1] + self.x + 1) as u16);
                 self.cycles += 2;
                 return bytes_to_addr(lo, hi);
-            },
+            }
             AddressingMode::IndY => {
                 let lo = self.read_bus(ops[1] as u16);
                 // wrap cast to make sure Rust doesn't expand either op prematurely
@@ -239,16 +238,16 @@ impl Cpu6502 {
                     self.cycles += 1; // oops cycle
                 }
                 return bytes_to_addr(lo, hi) + self.y as u16;
-            },
+            }
             AddressingMode::Rel => {
                 return self.pc + (ops[1] as u16);
-            },
+            }
             AddressingMode::ZP => {
                 return bytes_to_addr(ops[1], 0);
-            },
+            }
             AddressingMode::ZPX => bytes_to_addr(ops[1] + self.x, 0),
-            AddressingMode::ZPY => bytes_to_addr(ops[1] + self.y, 0)
-        }
+            AddressingMode::ZPY => bytes_to_addr(ops[1] + self.y, 0),
+        };
     }
 
     /// Read a byte from the bus, adding one to the cycle time
@@ -261,7 +260,7 @@ impl Cpu6502 {
 // Statics
 impl Cpu6502 {
     /// Create a new CPU, connected to the given databus.
-    /// 
+    ///
     /// # Note
     ///
     /// Default values are the NES power-up vals
@@ -275,7 +274,7 @@ impl Cpu6502 {
             pc: 0xC000,
             // IRQ disabled
             // Unwrapping b/c this is a constant and should be OK
-            status: Status::from_bits(0x24).unwrap(), 
+            status: Status::from_bits(0x24).unwrap(),
 
             // internal state
             bus: bus,
@@ -284,7 +283,7 @@ impl Cpu6502 {
             opcode: 0,
             addr: 0,
             addr_mode: AddressingMode::Impl,
-        }
+        };
     }
 }
 
@@ -293,16 +292,13 @@ impl fmt::Display for Cpu6502 {
         let opcodes = self.opcode.to_le_bytes();
         let ops = match self.addr_mode {
             AddressingMode::Abs
-                | AddressingMode::AbsX
-                | AddressingMode::AbsY
-                | AddressingMode::AbsInd => format!(
-                    "{:2X} {:2X} {:2X}",
-                    opcodes[0],
-                    opcodes[1],
-                    opcodes[2]
-            ),
+            | AddressingMode::AbsX
+            | AddressingMode::AbsY
+            | AddressingMode::AbsInd => {
+                format!("{:2X} {:2X} {:2X}", opcodes[0], opcodes[1], opcodes[2])
+            }
             AddressingMode::Accum | AddressingMode::Impl => format!("{:8<2X}", opcodes[0]),
-            _ => format!("{:2X} {:2X}   ", opcodes[0], opcodes[1])
+            _ => format!("{:2X} {:2X}   ", opcodes[0], opcodes[1]),
         };
         write!(
             f,
