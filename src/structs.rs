@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum AddressingMode {
     /// Zero-Page
     ZP,
@@ -37,7 +37,7 @@ pub enum AddressingMode {
 /// Enum for the instructions implemented by this emulator
 ///
 /// *depends on BCD flag, not currently supported
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Instruction {
     /// ADd with Carry*
     ADC,

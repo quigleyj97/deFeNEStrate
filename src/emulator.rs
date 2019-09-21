@@ -149,12 +149,55 @@ impl Cpu6502 {
         // determine the opcode, and the `bbb` bits determine the addrssing
         // mode. `cc` never takes the form `11`.
 
+        // Before we go any further, there's a few instructions that are better
+        // to special case.
+        match ops[0] {
+            0x00 => {
+                self.instr = Instruction::BRK;
+                self.addr_mode = AddressingMode::Impl;
+                return;
+            },
+            0x20 => {
+                self.instr = Instruction::JSR;
+                self.addr_mode = AddressingMode::Abs;
+                return;
+            },
+            0x40 => {
+                self.instr = Instruction::RTI;
+                self.addr_mode = AddressingMode::Impl;
+                return;
+            },
+            0x6C => {
+                self.instr = Instruction::RTS;
+                self.addr_mode = AddressingMode::AbsInd;
+                return;
+            },
+            0x8A => { self.addr_mode = AddressingMode::Impl; self.instr = Instruction::TXA; return; },
+            0x9A => { self.addr_mode = AddressingMode::Impl; self.instr = Instruction::TXS; return; },
+            0xAA => { self.addr_mode = AddressingMode::Impl; self.instr = Instruction::TAX; return; },
+            0xBA => { self.addr_mode = AddressingMode::Impl; self.instr = Instruction::TSX; return; },
+            0xCA => { self.addr_mode = AddressingMode::Impl; self.instr = Instruction::DEX; return; },
+            0xEA => { self.addr_mode = AddressingMode::Impl; self.instr = Instruction::NOP; return; },
+            _ => {}
+        };
+
         let subtable = ops[0] & 0x3;
         let addr_mode = ops[0] & 0x1c;
-        // let opcode = ops[0] & 0xe0;
+        let opcode = ops[0] & 0xe0;
 
         match subtable {
             0b01 => {
+                self.instr = match opcode {
+                    0b000 => Instruction::ORA,
+                    0b001 => Instruction::AND,
+                    0b010 => Instruction::EOR,
+                    0b011 => Instruction::ADC,
+                    0b100 => Instruction::STA,
+                    0b101 => Instruction::LDA,
+                    0b110 => Instruction::CMP,
+                    0b111 => Instruction::SBC,
+                    _ => panic!("Invalid opcode")
+                };
                 self.addr_mode = match addr_mode {
                     0b000 => AddressingMode::IndX,
                     0b001 => AddressingMode::ZP,
@@ -165,12 +208,22 @@ impl Cpu6502 {
                     0b110 => AddressingMode::AbsY,
                     0b111 => AddressingMode::AbsX,
                     _ => panic!("Invalid addressing mode")
-                }
-                // opcode
+                };
             }
             0b10 => {
-                // TODO: STX and LDX use Y, not X
-                let use_y = true;
+                self.instr = match opcode {
+                    0b000 => Instruction::ASL,
+                    0b001 => Instruction::ROL,
+                    0b010 => Instruction::LSR,
+                    0b011 => Instruction::ROR,
+                    0b100 => Instruction::STX,
+                    0b101 => Instruction::LDX,
+                    0b110 => Instruction::DEC,
+                    0b111 => Instruction::INC,
+                    _ => panic!("Invalid opcode")
+                };
+                // the STX and LDX instructions should target the Y index register instead
+                let use_y = self.instr == Instruction::STX || self.instr == Instruction::LDX;
                 self.addr_mode = match addr_mode {
                     0b000 => AddressingMode::Imm,
                     0b001 => AddressingMode::ZP,
@@ -178,13 +231,64 @@ impl Cpu6502 {
                     0b011 => AddressingMode::Abs,
                     // skip 0b100 (branch instr)
                     0b101 => if use_y { AddressingMode::ZPY } else { AddressingMode::ZPX },
-                    // skip 0b110
+                    // skip 0b110 (single byte instr)
                     0b111 => if use_y { AddressingMode::AbsY } else { AddressingMode::AbsX },
                     _ => panic!("Invalid addressing mode")
                 }
-                // opcode
             }
             0b00 => {
+                if ops[0] & 0x0F == 0x08 {
+                    // this is a single byte instruction, and doesn't map to the AAABBBCC pattern
+                    // handle it specially
+                    self.addr_mode = AddressingMode::Impl;
+                    self.instr = match ops[0] >> 4 {
+                        0x0 => Instruction::PHP,
+                        0x1 => Instruction::CLC,
+                        0x2 => Instruction::PLP,
+                        0x3 => Instruction::SEC,
+                        0x4 => Instruction::PHA,
+                        0x5 => Instruction::CLI,
+                        0x6 => Instruction::PLA,
+                        0x7 => Instruction::SEI,
+                        0x8 => Instruction::DEY,
+                        0x9 => Instruction::TYA,
+                        0xA => Instruction::TAY,
+                        0xB => Instruction::CLV,
+                        0xC => Instruction::INY,
+                        0xD => Instruction::CLD,
+                        0xE => Instruction::INX,
+                        0xF => Instruction::SED,
+                        _ => panic!("Invalid instruction")
+                    };
+                    return;
+                }
+                if opcode == 0b100 {
+                    // these are branch instructions
+                    self.addr_mode = AddressingMode::Rel;
+                    // in this case the AAAs are actually the instruction type
+                    self.instr = match addr_mode {
+                        0b000 => Instruction::BPL,
+                        0b001 => Instruction::BMI,
+                        0b010 => Instruction::BVC,
+                        0b011 => Instruction::BVS,
+                        0b100 => Instruction::BCC,
+                        0b101 => Instruction::BCS,
+                        0b110 => Instruction::BNE,
+                        0b111 => Instruction::BEQ,
+                        _ => panic!("Invalid opcode")
+                    };
+                }
+                self.instr = match opcode {
+                    // skip 0b000 (branch instr)
+                    0b001 => Instruction::BIT,
+                    0b010 => Instruction::JMP,
+                    0b011 => Instruction::JMP, // abs addressing
+                    0b100 => Instruction::STY,
+                    0b101 => Instruction::LDY,
+                    0b110 => Instruction::CPY,
+                    0b111 => Instruction::CPX,
+                    _ => panic!("Invalid opcode")
+                };
                 self.addr_mode = match addr_mode {
                     0b000 => AddressingMode::Imm,
                     0b001 => AddressingMode::ZP,
@@ -196,7 +300,6 @@ impl Cpu6502 {
                     0b111 => AddressingMode::AbsX,
                     _ => panic!("Invalid addressing mode")
                 }
-                // opcode
             }
             0b11 => {}
             _ => panic!("Invalid instruction"),
