@@ -1,6 +1,7 @@
 // Emulator for the MOS 6502
 use std::fmt;
-use std::rc::Rc;
+use std::cell::{RefCell};
+use std::rc::{Rc};
 
 use crate::databus::Bus;
 use crate::structs::{AddressingMode, Instruction};
@@ -19,7 +20,7 @@ bitflags! {
 }
 
 fn bytes_to_addr(lo: u8, hi: u8) -> u16 {
-    (u16::from(hi) << 8) + u16::from(lo)
+    (u16::from(lo) << 8) + u16::from(hi)
 }
 
 pub struct Cpu6502 {
@@ -90,6 +91,13 @@ pub struct Cpu6502 {
     /// comparison. It is not a part of core emulation.
     tot_cycles: u32,
 
+    /// The last value of the program counter, used for debugging.
+    ///
+    /// During execution of an instruction, the pc will be changed (and some
+    /// instructions might change it further, like JMP). To know where it came
+    /// from when looking through logs, you need to print _this_ instead.
+    last_pc: u16,
+
     /// The resolved address of the instruction
     addr: u16,
 
@@ -101,7 +109,7 @@ pub struct Cpu6502 {
     //endregion
 
     //region stuff
-    bus: Rc<Bus>,
+    bus: Rc<RefCell<Bus>>,
 }
 
 impl Cpu6502 {
@@ -115,9 +123,12 @@ impl Cpu6502 {
     }
 
     pub fn exec(&mut self) {
+        self.load_opcode();
         self.decode_opcode(self.instruction);
         self.addr = self.get_addr(self.instruction);
-        self.pc += 1;
+        self.last_pc = self.pc;
+        self.pc += 2;
+        self.exec_instr();
     }
 
     pub fn reset(&mut self) {
@@ -133,6 +144,13 @@ impl Cpu6502 {
         self.status &= !flag;
     }
 
+    fn load_opcode(&mut self) {
+        let bus = self.bus.borrow();
+        let opcode = bus.read(self.pc);
+        let operand1 = bus.read(self.pc + 1);
+        let operand2 = bus.read(self.pc + 2);
+        self.instruction = u32::from(opcode) + (u32::from(operand1) << 8) + (u32::from(operand2) << 16)
+    }
     /// Decodes an instruction into it's opcode and operand.
     ///
     /// # Notes
@@ -374,10 +392,10 @@ impl Cpu6502 {
             }
             AddressingMode::AbsInd => {
                 let addr = bytes_to_addr(ops[2], ops[1]);
-                let lo = self.bus.read(addr);
-                let hi = self.bus.read(addr + 1);
+                let lo = self.read_bus(addr);
+                let hi = self.read_bus(addr + 1);
                 // TODO: JMP,AbsInd should get the right # of cycles
-                self.cycles += 3;
+                self.cycles += 1;
                 bytes_to_addr(hi, lo)
             }
             AddressingMode::AbsX => {
@@ -428,7 +446,76 @@ impl Cpu6502 {
     /// Read a byte from the bus, adding one to the cycle time
     fn read_bus(&mut self, addr: u16) -> u8 {
         self.cycles += 1;
-        self.bus.read(addr)
+        let bus = self.bus.borrow();
+        bus.read(addr)
+    }
+
+    /// Read the data at the resolved address
+    fn read(&mut self) -> u8 {
+        let ops = self.instruction.to_le_bytes();
+        match self.addr_mode {
+            AddressingMode::Imm => ops[1],
+            AddressingMode::Accum => self.acc,
+            _ => self.read_bus(self.addr)
+        }
+    }
+
+    fn write(&mut self, data: u8) {
+        self.cycles += 1;
+        let mut bus = self.bus.borrow_mut();
+        bus.write(self.addr, data);
+    }
+
+    fn push_stack(&mut self, data: u8) {
+        let mut bus = self.bus.borrow_mut();
+        let addr = bytes_to_addr(0x01, self.stack);
+        bus.write(addr, data);
+        self.cycles += 1;
+        self.stack -= 1;
+    }
+
+    fn pop_stack(&mut self) -> u8 {
+        let addr = bytes_to_addr(0x01, self.stack);
+        self.stack += 1;
+        self.read_bus(addr)
+    }
+
+    /// Execute the loaded instruction.
+    ///
+    /// Internally this uses a massive match pattern- TBD on whether this should
+    /// be changed, but given that most of the instructions are self-contained
+    /// and very short, I think it's not indefensible (plus it's easy).
+    fn exec_instr(&mut self) {
+        match self.instr {
+            Instruction::ADC => {
+                if self.status.contains(Status::DECIMAL) {
+                    println!(" [WARN] This emulator doesn't support BCD, but the BCD flag is set");
+                }
+                let val: u16 = u16::from(self.acc) + u16::from(self.read());
+                if val & 0x10 == 0x10 {
+                    // an overflow occured
+                    self.set_flag(Status::OVERFLOW);
+                }
+                self.acc = (0x0F & val) as u8;
+            }
+            Instruction::JMP => {
+                self.cycles += 1;
+                self.pc = self.addr;
+            }
+            Instruction::JSR => {
+                let addr_bytes = (self.addr - 1).to_le_bytes();
+                self.push_stack(addr_bytes[0]);
+                self.push_stack(addr_bytes[1]);
+                self.pc = self.addr;
+            }
+            Instruction::LDX => {
+                self.x = self.read();
+            }
+            Instruction::STX => {
+                self.write(self.x);
+            }
+            _ => {} // treat as no op
+        }
     }
 }
 
@@ -440,7 +527,7 @@ impl Cpu6502 {
     ///
     /// Default values are the NES power-up vals
     /// cf. http://wiki.nesdev.com/w/index.php/CPU_power_up_state
-    pub fn new(bus: Rc<Bus>) -> Cpu6502 {
+    pub fn new(bus: Rc<RefCell<Bus>>) -> Cpu6502 {
         Cpu6502 {
             acc: 0,
             x: 0,
@@ -454,7 +541,8 @@ impl Cpu6502 {
             // internal state
             bus,
             cycles: 0,
-            tot_cycles: 0,
+            tot_cycles: 1,
+            last_pc: 0xC000,
             instruction: 0xEA,
             addr: 0,
             addr_mode: AddressingMode::Impl,
@@ -470,24 +558,24 @@ impl fmt::Display for Cpu6502 {
             AddressingMode::Abs
             | AddressingMode::AbsX
             | AddressingMode::AbsY
-            | AddressingMode::AbsInd => format!("{:2X} {:2X} {:2X}", bytes[0], bytes[1], bytes[2]),
+            | AddressingMode::AbsInd => format!("{:02X} {:02X} {:02X}", bytes[0], bytes[1], bytes[2]),
             AddressingMode::Accum | AddressingMode::Impl => format!("{:8<2X}", bytes[0]),
-            _ => format!("{:2X} {:2X}   ", bytes[0], bytes[1]),
+            _ => format!("{:02X} {:02X}   ", bytes[0], bytes[1]),
         };
 
-        // std::fmt's Hex impls use big endian, so translate to account for that
-        let operand_be_bytes = bytes_to_addr(bytes[1], bytes[2]).swap_bytes();
-        let data = self.bus.read(self.addr);
-        let addr_be_bytes = self.addr.swap_bytes();
+        let operand_bytes = bytes_to_addr(bytes[1], bytes[2]);
+        let bus = self.bus.borrow();
+        let data = bus.read(self.addr);
+        let addr = self.addr;
         let instr = match self.addr_mode {
-            AddressingMode::Abs => format!("{:3?} ${:04X}", self.instr, addr_be_bytes),
-            AddressingMode::AbsX => format!("{:3?} ${:04X},X @ {:04X} = {:02X}", self.instr, operand_be_bytes, addr_be_bytes, data),
-            AddressingMode::AbsY => format!("{:3?} ${:04X},Y @ {:04X} = {:02X}", self.instr, operand_be_bytes, addr_be_bytes, data),
-            AddressingMode::AbsInd => format!("{:3?} (${:04X}) = {:04X}", self.instr, operand_be_bytes, addr_be_bytes),
+            AddressingMode::Abs => format!("{:3?} ${:04X}", self.instr, addr),
+            AddressingMode::AbsX => format!("{:3?} ${:04X},X @ {:04X} = {:02X}", self.instr, operand_bytes, addr, data),
+            AddressingMode::AbsY => format!("{:3?} ${:04X},Y @ {:04X} = {:02X}", self.instr, operand_bytes, addr, data),
+            AddressingMode::AbsInd => format!("{:3?} (${:04X}) = {:04X}", self.instr, operand_bytes, addr),
             AddressingMode::Imm => format!("{:3?} #${:02X}", self.instr, data),
-            AddressingMode::ZP => format!("{:3?} ${:04X} = {:02X}", self.instr, bytes[1], data),
-            AddressingMode::ZPX => format!("{:3?} ${:04X},X @ {:02X} = {:02X}", self.instr, bytes[1], self.x, addr_be_bytes),
-            AddressingMode::ZPY => format!("{:3?} ${:04X},Y @ {:02X} = {:02X}", self.instr, bytes[1], self.y, addr_be_bytes),
+            AddressingMode::ZP => format!("{:3?} ${:02X} = {:02X}", self.instr, bytes[1], data),
+            AddressingMode::ZPX => format!("{:3?} ${:02X},X @ {:02X} = {:02X}", self.instr, bytes[1], self.x, addr),
+            AddressingMode::ZPY => format!("{:3?} ${:02X},Y @ {:02X} = {:02X}", self.instr, bytes[1], self.y, addr),
             AddressingMode::Impl => format!("{:3?}", self.instr),
             _ => format!("{:3?} {:02X} {:02X} <TODO>", self.instr, bytes[1], bytes[2])
         };
@@ -495,7 +583,7 @@ impl fmt::Display for Cpu6502 {
             f,
             //PC     Ops   Inst Accum    X reg    Y reg    Status   Stack     PPU.row...line  tot_cycles
             "{:04X}  {:8}  {:32}A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{:>3},{:>3} CYC:{}",
-            self.pc,
+            self.last_pc,
             ops,
             instr,
             self.acc,
