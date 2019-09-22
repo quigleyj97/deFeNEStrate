@@ -125,9 +125,8 @@ impl Cpu6502 {
     pub fn exec(&mut self) {
         self.load_opcode();
         self.decode_opcode(self.instruction);
-        self.addr = self.get_addr(self.instruction);
         self.last_pc = self.pc;
-        self.pc += 2;
+        self.addr = self.get_addr(self.instruction);
         self.exec_instr();
     }
 
@@ -384,14 +383,18 @@ impl Cpu6502 {
         let ops = instruction.to_le_bytes();
         // +2 cycles for instr + byte1 of op readout, minimum
         self.cycles += 2;
+        // Advance the PC at _least_ 1 byte
+        self.pc += 1;
 
         match self.addr_mode {
             AddressingMode::Abs => {
                 self.cycles += 2;
+                self.pc += 2;
                 bytes_to_addr(ops[2], ops[1])
             }
             AddressingMode::AbsInd => {
                 let addr = bytes_to_addr(ops[2], ops[1]);
+                self.pc += 2;
                 let lo = self.read_bus(addr);
                 let hi = self.read_bus(addr + 1);
                 // TODO: JMP,AbsInd should get the right # of cycles
@@ -400,6 +403,7 @@ impl Cpu6502 {
             }
             AddressingMode::AbsX => {
                 let addr = bytes_to_addr(ops[2], ops[1]) + u16::from(self.x);
+                self.pc += 2;
                 if (u16::from(self.x) + u16::from(ops[1])) & 0x0100 == 0x0100 {
                     self.cycles += 1; // oops cycle
                 }
@@ -408,6 +412,7 @@ impl Cpu6502 {
             }
             AddressingMode::AbsY => {
                 let addr = bytes_to_addr(ops[2], ops[1]) + u16::from(self.y);
+                self.pc += 2;
                 if (u16::from(self.y) + u16::from(ops[1])) & 0x0100 == 0x0100 {
                     self.cycles += 1; // oops cycle
                 }
@@ -418,15 +423,20 @@ impl Cpu6502 {
                 // TODO: Make addressing Optional?
                 0x0000
             }
-            AddressingMode::Imm => 0x0000,
+            AddressingMode::Imm => {
+                self.pc += 1;
+                0x0000
+            }
             AddressingMode::Impl => 0x0000,
             AddressingMode::IndX => {
+                self.pc += 1;
                 let lo = self.read_bus(u16::from(ops[1] + self.x));
                 let hi = self.read_bus(u16::from(ops[1] + self.x + 1));
                 self.cycles += 2;
                 bytes_to_addr(lo, hi)
             }
             AddressingMode::IndY => {
+                self.pc += 1;
                 let lo = self.read_bus(u16::from(ops[1]));
                 // wrap cast to make sure Rust doesn't expand either op prematurely
                 let hi = self.read_bus(u16::from((ops[1] + 1) as u8));
@@ -436,10 +446,22 @@ impl Cpu6502 {
                 }
                 bytes_to_addr(lo, hi) + u16::from(self.y)
             }
-            AddressingMode::Rel => self.pc + u16::from(ops[1]),
-            AddressingMode::ZP => bytes_to_addr(ops[1], 0),
-            AddressingMode::ZPX => bytes_to_addr(ops[1] + self.x, 0),
-            AddressingMode::ZPY => bytes_to_addr(ops[1] + self.y, 0),
+            AddressingMode::Rel => {
+                self.pc += 1;
+                (self.pc - 2) + u16::from(ops[1])
+            },
+            AddressingMode::ZP => {
+                self.pc += 1;
+                bytes_to_addr(ops[1], 0)
+            }
+            AddressingMode::ZPX => {
+                self.pc += 1;
+                bytes_to_addr(ops[1] + self.x, 0)
+            }
+            AddressingMode::ZPY => {
+                self.pc += 1;
+                bytes_to_addr(ops[1] + self.y, 0)
+            }
         }
     }
 
