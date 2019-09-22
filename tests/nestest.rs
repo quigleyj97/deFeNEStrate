@@ -42,7 +42,7 @@ fn nestest_exec() {
         }
         println!("{}", cpu);
         instrs += 1;
-        if instrs > 7 { break; }
+        if instrs > 500 { break; }
     }
     cpu.reset();
     println!("{}", cpu);
@@ -52,7 +52,7 @@ fn nestest_exec() {
 fn write_test(busref: &Rc<RefCell<Bus>>) {
     let path = Path::new("./tests/data/nestest.nes");
     let mut file = File::open(path).expect("Could not read NESTEST rom");
-    file.seek(SeekFrom::Start(16)); // skip the header
+    file.seek(SeekFrom::Start(16)).unwrap(); // skip the header
     let mut bus = busref.borrow_mut();
 
     let mut pc = 0xC000;
