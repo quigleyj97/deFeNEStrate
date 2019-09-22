@@ -318,7 +318,7 @@ impl Cpu6502 {
                     };
                     return;
                 }
-                if opcode == 0b100 {
+                if addr_mode == 0b100 {
                     // these are branch instructions
                     self.addr_mode = AddressingMode::Rel;
                     // in this case the AAAs are actually the instruction type
@@ -333,6 +333,7 @@ impl Cpu6502 {
                         0b111 => Instruction::BEQ,
                         _ => panic!("Invalid opcode"),
                     };
+                    return;
                 }
                 self.instr = match opcode {
                     // skip 0b000 (branch instr)
