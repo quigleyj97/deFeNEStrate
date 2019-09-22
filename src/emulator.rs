@@ -321,8 +321,7 @@ impl Cpu6502 {
                 if addr_mode == 0b100 {
                     // these are branch instructions
                     self.addr_mode = AddressingMode::Rel;
-                    // in this case the AAAs are actually the instruction type
-                    self.instr = match addr_mode {
+                    self.instr = match opcode {
                         0b000 => Instruction::BPL,
                         0b001 => Instruction::BMI,
                         0b010 => Instruction::BVC,
@@ -449,7 +448,7 @@ impl Cpu6502 {
             }
             AddressingMode::Rel => {
                 self.pc += 1;
-                (self.pc - 2) + u16::from(ops[1])
+                self.pc + u16::from(ops[1])
             },
             AddressingMode::ZP => {
                 self.pc += 1;
@@ -503,6 +502,34 @@ impl Cpu6502 {
         self.read_bus(addr)
     }
 
+    fn check_carry(&mut self, val: u16) {
+        if val & 0x10 == 0x10 {
+            // an overflow occured
+            self.set_flag(Status::CARRY);
+        }
+    }
+
+    fn check_zero(&mut self, val: u8) {
+        if val == 0 {
+            self.set_flag(Status::ZERO);
+        }
+    }
+
+    fn check_overflow(&mut self, left: u8, right: u8) {
+        let left = u16::from(left);
+        let right = u16::from(right);
+        let res = left + right;
+        if left^res & right^res & 0x80 != 0 {
+            self.set_flag(Status::OVERFLOW);
+        }
+    }
+
+    fn check_negative(&mut self, op: u8) {
+        if op & 0x80 != 0 {
+            self.set_flag(Status::NEGATIVE);
+        }
+    }
+
     /// Execute the loaded instruction.
     ///
     /// Internally this uses a massive match pattern- TBD on whether this should
@@ -514,13 +541,140 @@ impl Cpu6502 {
                 if self.status.contains(Status::DECIMAL) {
                     println!(" [WARN] This emulator doesn't support BCD, but the BCD flag is set");
                 }
-                let val: u16 = u16::from(self.acc) + u16::from(self.read());
-                if val & 0x10 == 0x10 {
-                    // an overflow occured
-                    self.set_flag(Status::OVERFLOW);
-                }
-                self.acc = (0x0F & val) as u8;
+                let op = self.read();
+                let val: u16 = u16::from(self.acc)
+                    + u16::from(op)
+                    + if self.status.contains(Status::CARRY) { 1 } else { 0 };
+                self.check_carry(val);
+                self.check_overflow(self.acc, op);
+                self.acc = (0xFF & val) as u8;
+                self.check_zero(self.acc);
+                self.check_negative(self.acc);
             }
+
+            // region Bitwise ops
+            // AND BIT EOR
+            Instruction::AND => {
+                self.acc &= self.read();
+                self.check_zero(self.acc);
+                self.check_negative(self.acc);
+            }
+            Instruction::BIT => {
+                let op = self.read();
+                let res = self.acc & op;
+                self.check_zero(res);
+                self.status = Status::from_bits_truncate(self.status.bits() & 0xFC | (0x03 & res));
+            }
+            Instruction::EOR => {
+                self.acc ^= self.read();
+                self.check_zero(self.acc);
+                self.check_negative(self.acc);
+            }
+            // endregion
+
+            Instruction::ASL => {
+                let op = self.read();
+                let res = u16::from(op) << 1;
+                self.check_carry(res);
+                self.acc = (0xFF & res) as u8;
+                self.check_zero(self.acc);
+                self.check_negative(self.acc);
+            }
+
+            //region Branch instructions
+            // BPL BMI BVC BVS BCC BCS BEQ BNE
+            Instruction::BPL => {
+                if self.status.contains(Status::NEGATIVE) { return; }
+                self.cycles += 1;
+                self.pc = self.addr;
+            }
+            Instruction::BMI => {
+                if !self.status.contains(Status::NEGATIVE) { return; }
+                self.cycles += 1;
+                self.pc = self.addr;
+            }
+            Instruction::BVC => {
+                if self.status.contains(Status::OVERFLOW) { return; }
+                self.cycles += 1;
+                self.pc = self.addr;
+            }
+            Instruction::BVS => {
+                if !self.status.contains(Status::OVERFLOW) { return; }
+                self.cycles += 1;
+                self.pc = self.addr;
+            }
+            Instruction::BCC => {
+                if self.status.contains(Status::CARRY) { return; }
+                self.cycles += 1;
+                self.pc = self.addr;
+            }
+            Instruction::BCS => {
+                if !self.status.contains(Status::CARRY) { return; }
+                self.cycles += 1;
+                self.pc = self.addr;
+            }
+            Instruction::BEQ => {
+                if self.status.contains(Status::ZERO) { return; }
+                self.cycles += 1;
+                self.pc = self.addr;
+            }
+            Instruction::BNE => {
+                if !self.status.contains(Status::ZERO) { return; }
+                self.cycles += 1;
+                self.pc = self.addr;
+            }
+            //endregion
+
+            Instruction::BRK => {
+                // TODO: Set interrupt
+                self.set_flag(Status::BREAK);
+                println!("BREAK");
+            }
+
+            //region Compare functions
+            // CMP CPX CPY
+            Instruction::CMP => {
+                let data = self.read();
+                self.status.set(Status::CARRY, self.acc > data);
+                self.status.set(Status::ZERO, self.acc == data);
+                self.check_negative(data);
+            }
+            Instruction::CPX => {
+                let data = self.read();
+                self.status.set(Status::CARRY, self.x > data);
+                self.status.set(Status::ZERO, self.x == data);
+                self.check_negative(data);
+            }
+            Instruction::CPY => {
+                let data = self.read();
+                self.status.set(Status::CARRY, self.y > data);
+                self.status.set(Status::ZERO, self.y == data);
+                self.check_negative(data);
+            }
+            // endregion
+
+            //region Memory functions
+            // DEC
+            Instruction::DEC => {
+                let op = self.read() - 1;
+                self.cycles += 1;
+                self.write(op);
+                self.check_zero(op);
+                self.check_negative(op);
+            }
+            //endregion
+
+            //region Flag operations
+            // CLC SEC CLI SEI CLV CLD SED
+            Instruction::CLC => self.clear_flag(Status::CARRY),
+            Instruction::SEC => self.set_flag(Status::CARRY),
+            Instruction::CLI => self.clear_flag(Status::IRQ_DISABLE),
+            Instruction::SEI => self.set_flag(Status::IRQ_DISABLE),
+            Instruction::CLV => self.clear_flag(Status::OVERFLOW),
+            Instruction::CLD => self.clear_flag(Status::DECIMAL),
+            Instruction::SED => self.set_flag(Status::DECIMAL),
+            //endregion
+
             Instruction::JMP => {
                 self.cycles += 1;
                 self.pc = self.addr;
@@ -600,6 +754,7 @@ impl fmt::Display for Cpu6502 {
             AddressingMode::ZPX => format!("{:3?} ${:02X},X @ {:02X} = {:02X}", self.instr, bytes[1], self.x, addr),
             AddressingMode::ZPY => format!("{:3?} ${:02X},Y @ {:02X} = {:02X}", self.instr, bytes[1], self.y, addr),
             AddressingMode::Impl => format!("{:3?}", self.instr),
+            AddressingMode::Rel => format!("{:3?} ${:04X}", self.instr, addr),
             _ => format!("{:3?} {:02X} {:02X} <TODO>", self.instr, bytes[1], bytes[2])
         };
         write!(
