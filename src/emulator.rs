@@ -553,7 +553,7 @@ impl Cpu6502 {
             }
 
             // region Bitwise ops
-            // AND BIT EOR
+            // AND BIT EOR ORA
             Instruction::AND => {
                 self.acc &= self.read();
                 self.check_zero(self.acc);
@@ -567,6 +567,11 @@ impl Cpu6502 {
             }
             Instruction::EOR => {
                 self.acc ^= self.read();
+                self.check_zero(self.acc);
+                self.check_negative(self.acc);
+            }
+            Instruction::ORA => {
+                self.acc |= self.read();
                 self.check_zero(self.acc);
                 self.check_negative(self.acc);
             }
@@ -654,13 +659,67 @@ impl Cpu6502 {
             // endregion
 
             //region Memory functions
-            // DEC
+            // DEC INC LSR ROL ROR
             Instruction::DEC => {
                 let op = self.read() - 1;
                 self.cycles += 1;
                 self.write(op);
                 self.check_zero(op);
                 self.check_negative(op);
+            }
+            Instruction::INC => {
+                let op = self.read() + 1;
+                self.cycles += 1;
+                self.write(op);
+                self.check_zero(op);
+                self.check_negative(op);
+            }
+            Instruction::LSR => {
+                // I'm doing a bit of a trick here
+                // If we look at the *high* byte, then functionally there's no
+                // difference between (u16 << 7) and (u8 >> 1). But by casting
+                // to u16 and doing it 'backwards', we preserve the lopped off
+                // bit so that we can use it to set the carry bit
+                let data = u16::from(self.read()) << 7;
+                // we want the last bit for the carry -----v
+                self.status.set(Status::CARRY, data & 0x00_80 == 0x00_80);
+                // throw out the extra byte now that we're done with it
+                let data = data.to_be_bytes()[0];
+                self.check_zero(data);
+                self.check_negative(data);
+                // Finally, since this _could_ go to the accumulator, we need to
+                // check for that addressing mode
+                match self.addr_mode {
+                    AddressingMode::Accum => self.acc = data,
+                    _ => self.write(data)
+                };
+            }
+            Instruction::ROL => {
+                // See my notes on the LSR instruction, I do a similar trick
+                // here (for similar reasons)
+                let data = u16::from(self.read()) << 7
+                    | if self.status.contains(Status::CARRY) { 0x80_00 } else { 0x0 };
+                self.status.set(Status::CARRY, data & 0x00_80 == 0x00_80);
+                let data = data.to_be_bytes()[0];
+                self.check_zero(data);
+                self.check_negative(data);
+                // Even the caveat on addressing is the same
+                match self.addr_mode {
+                    AddressingMode::Accum => self.acc = data,
+                    _ => self.write(data)
+                };
+            }
+            Instruction::ROR => {
+                let data = u16::from(self.read() << 1)
+                    | if self.status.contains(Status::CARRY) { 0x01 } else { 0x00 };
+                self.status.set(Status::CARRY, data & 0x01_00 == 0x01_00);
+                let data: u8 = (data & 0xFF) as u8;
+                self.check_zero(data);
+                self.check_negative(data);
+                match self.addr_mode {
+                    AddressingMode::Accum => self.acc = data,
+                    _ => self.write(data)
+                };
             }
             //endregion
 
@@ -675,6 +734,8 @@ impl Cpu6502 {
             Instruction::SED => self.set_flag(Status::DECIMAL),
             //endregion
 
+            //region Jumps
+            // JMP JSR
             Instruction::JMP => {
                 self.cycles += 1;
                 self.pc = self.addr;
@@ -684,10 +745,75 @@ impl Cpu6502 {
                 self.push_stack(addr_bytes[0]);
                 self.push_stack(addr_bytes[1]);
                 self.pc = self.addr;
+                self.cycles += 1;
+            }
+            //endregion
+
+            //region Loads
+            Instruction::LDA => {
+                self.acc = self.read();
+                self.check_zero(self.acc);
+                self.check_negative(self.acc);
             }
             Instruction::LDX => {
                 self.x = self.read();
+                self.check_zero(self.x);
+                self.check_negative(self.x);
             }
+            Instruction::LDY => {
+                self.y = self.read();
+                self.check_zero(self.y);
+                self.check_negative(self.y);
+            }
+            //endregion
+
+            Instruction::NOP => {
+                // no operation
+            }
+
+            // region Register instructions
+            Instruction::TAX => {
+                self.x = self.acc;
+                self.check_zero(self.x);
+                self.check_negative(self.x);
+            }
+            Instruction::TXA => {
+                self.acc = self.x;
+                self.check_zero(self.acc);
+                self.check_negative(self.acc);
+            }
+            Instruction::TAY => {
+                self.y = self.acc;
+                self.check_zero(self.y);
+                self.check_negative(self.y);
+            }
+            Instruction::TYA => {
+                self.acc = self.y;
+                self.check_zero(self.acc);
+                self.check_negative(self.acc);
+            }
+            Instruction::INX => {
+                self.x += 1;
+                self.check_zero(self.x);
+                self.check_negative(self.x);
+            }
+            Instruction::DEX => {
+                self.x -= 1;
+                self.check_zero(self.x);
+                self.check_negative(self.x);
+            }
+            Instruction::INY => {
+                self.y += 1;
+                self.check_zero(self.y);
+                self.check_negative(self.y);
+            }
+            Instruction::DEY => {
+                self.y -= 1;
+                self.check_zero(self.y);
+                self.check_negative(self.y);
+            }
+            // endregion
+
             Instruction::STX => {
                 self.write(self.x);
             }
