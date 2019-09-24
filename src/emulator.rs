@@ -546,6 +546,8 @@ impl Cpu6502 {
     /// and very short, I think it's not indefensible (plus it's easy).
     fn exec_instr(&mut self) {
         match self.instr {
+            //region Arithmetic ops
+            // ADC SBC
             Instruction::ADC => {
                 if self.status.contains(Status::DECIMAL) {
                     println!(" [WARN] This emulator doesn't support BCD, but the BCD flag is set");
@@ -560,8 +562,23 @@ impl Cpu6502 {
                 self.check_zero(self.acc);
                 self.check_negative(self.acc);
             }
+            Instruction::SBC => {
+                if self.status.contains(Status::DECIMAL) {
+                    println!(" [WARN] This emulator doesn't support BCD, but the BCD flag is set");
+                }
+                let op = self.read();
+                let val: u16 = u16::from(self.acc)
+                    - u16::from(op)
+                    - if !self.status.contains(Status::CARRY) { 1 } else { 0 };
+                self.check_carry(!val);
+                self.check_overflow(self.acc, op);
+                self.acc = (0xFF & val) as u8;
+                self.check_zero(self.acc);
+                self.check_negative(self.acc);
+            }
+            //endregion
 
-            // region Bitwise ops
+            //region Bitwise ops
             // AND BIT EOR ORA
             Instruction::AND => {
                 self.acc &= self.read();
@@ -584,7 +601,7 @@ impl Cpu6502 {
                 self.check_zero(self.acc);
                 self.check_negative(self.acc);
             }
-            // endregion
+            //endregion
 
             Instruction::ASL => {
                 let op = self.read();
@@ -744,7 +761,7 @@ impl Cpu6502 {
             //endregion
 
             //region Jumps
-            // JMP JSR
+            // JMP JSR RTI RTS
             Instruction::JMP => {
                 self.cycles += 1;
                 self.pc = self.addr;
@@ -755,6 +772,18 @@ impl Cpu6502 {
                 self.push_stack(addr_bytes[1]);
                 self.pc = self.addr;
                 self.cycles += 1;
+            }
+            Instruction::RTI => {
+                let flags = self.pop_stack();
+                self.status = Status::from_bits_truncate(flags);
+                let lo = self.pop_stack();
+                let hi = self.pop_stack();
+                self.pc = bytes_to_addr(hi, lo);
+            }
+            Instruction::RTS => {
+                let lo = self.pop_stack();
+                let hi = self.pop_stack();
+                self.pc = bytes_to_addr(hi, lo) - 1;
             }
             //endregion
 
@@ -780,7 +809,7 @@ impl Cpu6502 {
                 // no operation
             }
 
-            // region Register instructions
+            //region Register instructions
             Instruction::TAX => {
                 self.x = self.acc;
                 self.check_zero(self.x);
@@ -821,12 +850,44 @@ impl Cpu6502 {
                 self.check_zero(self.y);
                 self.check_negative(self.y);
             }
-            // endregion
+            //endregion
 
+            //region Storage instruction
+            Instruction::STA => {
+                self.write(self.acc)
+            }
             Instruction::STX => {
                 self.write(self.x);
             }
-            _ => {} // treat as no op
+            Instruction::STY => {
+                self.write(self.y);
+            }
+            //endregion
+
+            //region Stack instructions
+            Instruction::TXS => {
+                self.stack = self.x;
+            }
+            Instruction::TSX => {
+                self.x = self.stack;
+                self.check_zero(self.x);
+                self.check_negative(self.x);
+            }
+            Instruction::PHA => {
+                self.push_stack(self.acc);
+            }
+            Instruction::PLA => {
+                self.acc = self.pop_stack();
+                self.check_zero(self.acc);
+                self.check_negative(self.acc);
+            }
+            Instruction::PHP => {
+                self.push_stack(self.status.bits())
+            }
+            Instruction::PLP => {
+                self.status = Status::from_bits_truncate(self.pop_stack());
+            }
+            //endregion
         }
     }
 }
