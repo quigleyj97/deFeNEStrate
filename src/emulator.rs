@@ -187,14 +187,19 @@ impl Cpu6502 {
                 self.addr_mode = AddressingMode::Abs;
                 return;
             }
+            0x6C => {
+                self.instr = Instruction::JMP;
+                self.addr_mode = AddressingMode::AbsInd;
+                return;
+            }
             0x40 => {
                 self.instr = Instruction::RTI;
                 self.addr_mode = AddressingMode::Impl;
                 return;
             }
-            0x6C => {
+            0x60 => {
                 self.instr = Instruction::RTS;
-                self.addr_mode = AddressingMode::AbsInd;
+                self.addr_mode = AddressingMode::Impl;
                 return;
             }
             0x8A => {
@@ -767,7 +772,7 @@ impl Cpu6502 {
                 self.pc = self.addr;
             }
             Instruction::JSR => {
-                let addr_bytes = (self.addr - 1).to_le_bytes();
+                let addr_bytes = (self.pc).to_le_bytes();
                 self.push_stack(addr_bytes[0]);
                 self.push_stack(addr_bytes[1]);
                 self.pc = self.addr;
@@ -783,7 +788,7 @@ impl Cpu6502 {
             Instruction::RTS => {
                 let lo = self.pop_stack();
                 let hi = self.pop_stack();
-                self.pc = bytes_to_addr(hi, lo) - 1;
+                self.pc = bytes_to_addr(hi, lo);
             }
             //endregion
 
