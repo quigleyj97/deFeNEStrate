@@ -589,7 +589,7 @@ impl Cpu6502 {
                 let op = self.read();
                 let res = self.acc & op;
                 self.check_zero(res);
-                self.status = Status::from_bits_truncate((self.status.bits() & 0xFC) | (0x03 & res));
+                self.status = Status::from_bits_truncate((self.status.bits() & 0x3F) | (0xC0 & res));
             }
             Instruction::EOR => {
                 self.acc ^= self.read();
