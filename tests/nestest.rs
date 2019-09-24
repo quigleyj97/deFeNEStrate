@@ -35,12 +35,11 @@ fn nestest_exec() {
 
     let mut instrs = 0;
     loop {
-        cpu.exec();
+        println!("{}", cpu.debug());
         loop {
             let cycles = cpu.tick();
             if cycles { break; }
         }
-        println!("{}", cpu);
         instrs += 1;
         if instrs > 500 { break; }
     }

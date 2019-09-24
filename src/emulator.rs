@@ -91,13 +91,6 @@ pub struct Cpu6502 {
     /// comparison. It is not a part of core emulation.
     tot_cycles: u32,
 
-    /// The last value of the program counter, used for debugging.
-    ///
-    /// During execution of an instruction, the pc will be changed (and some
-    /// instructions might change it further, like JMP). To know where it came
-    /// from when looking through logs, you need to print _this_ instead.
-    last_pc: u16,
-
     /// The resolved address of the instruction
     addr: u16,
 
@@ -125,9 +118,21 @@ impl Cpu6502 {
     pub fn exec(&mut self) {
         self.load_opcode();
         self.decode_opcode(self.instruction);
-        self.last_pc = self.pc;
         self.addr = self.get_addr(self.instruction);
         self.exec_instr();
+    }
+
+    pub fn debug(&mut self) -> String {
+        let old_pc = self.pc;
+        self.load_opcode();
+        self.decode_opcode(self.instruction);
+        self.addr = self.get_addr(self.instruction);
+        let new_pc = self.pc;
+        self.pc = old_pc;
+        let debug_str = format!("{}", self);
+        self.pc = new_pc;
+        self.exec_instr();
+        debug_str
     }
 
     pub fn reset(&mut self) {
@@ -512,6 +517,8 @@ impl Cpu6502 {
     fn check_zero(&mut self, val: u8) {
         if val == 0 {
             self.set_flag(Status::ZERO);
+        } else {
+            self.clear_flag(Status::ZERO);
         }
     }
 
@@ -527,6 +534,8 @@ impl Cpu6502 {
     fn check_negative(&mut self, op: u8) {
         if op & 0x80 != 0 {
             self.set_flag(Status::NEGATIVE);
+        } else {
+            self.clear_flag(Status::NEGATIVE);
         }
     }
 
@@ -563,7 +572,7 @@ impl Cpu6502 {
                 let op = self.read();
                 let res = self.acc & op;
                 self.check_zero(res);
-                self.status = Status::from_bits_truncate(self.status.bits() & 0xFC | (0x03 & res));
+                self.status = Status::from_bits_truncate((self.status.bits() & 0xFC) | (0x03 & res));
             }
             Instruction::EOR => {
                 self.acc ^= self.read();
@@ -619,12 +628,12 @@ impl Cpu6502 {
                 self.pc = self.addr;
             }
             Instruction::BEQ => {
-                if self.status.contains(Status::ZERO) { return; }
+                if !self.status.contains(Status::ZERO) { return; }
                 self.cycles += 1;
                 self.pc = self.addr;
             }
             Instruction::BNE => {
-                if !self.status.contains(Status::ZERO) { return; }
+                if self.status.contains(Status::ZERO) { return; }
                 self.cycles += 1;
                 self.pc = self.addr;
             }
@@ -845,7 +854,6 @@ impl Cpu6502 {
             bus,
             cycles: 0,
             tot_cycles: 1,
-            last_pc: 0xC000,
             instruction: 0xEA,
             addr: 0,
             addr_mode: AddressingMode::Impl,
@@ -875,7 +883,7 @@ impl fmt::Display for Cpu6502 {
             AddressingMode::AbsX => format!("{:3?} ${:04X},X @ {:04X} = {:02X}", self.instr, operand_bytes, addr, data),
             AddressingMode::AbsY => format!("{:3?} ${:04X},Y @ {:04X} = {:02X}", self.instr, operand_bytes, addr, data),
             AddressingMode::AbsInd => format!("{:3?} (${:04X}) = {:04X}", self.instr, operand_bytes, addr),
-            AddressingMode::Imm => format!("{:3?} #${:02X}", self.instr, data),
+            AddressingMode::Imm => format!("{:3?} #${:02X}", self.instr, bytes[1]),
             AddressingMode::ZP => format!("{:3?} ${:02X} = {:02X}", self.instr, bytes[1], data),
             AddressingMode::ZPX => format!("{:3?} ${:02X},X @ {:02X} = {:02X}", self.instr, bytes[1], self.x, addr),
             AddressingMode::ZPY => format!("{:3?} ${:02X},Y @ {:02X} = {:02X}", self.instr, bytes[1], self.y, addr),
@@ -887,7 +895,7 @@ impl fmt::Display for Cpu6502 {
             f,
             //PC     Ops   Inst Accum    X reg    Y reg    Status   Stack     PPU.row...line  tot_cycles
             "{:04X}  {:8}  {:32}A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{:>3},{:>3} CYC:{}",
-            self.last_pc,
+            self.pc,
             ops,
             instr,
             self.acc,
