@@ -507,8 +507,8 @@ impl Cpu6502 {
     }
 
     fn pop_stack(&mut self) -> u8 {
-        let addr = bytes_to_addr(0x01, self.stack);
         self.stack += 1;
+        let addr = bytes_to_addr(0x01, self.stack);
         self.read_bus(addr)
     }
 
@@ -671,19 +671,19 @@ impl Cpu6502 {
             // CMP CPX CPY
             Instruction::CMP => {
                 let data = self.read();
-                self.status.set(Status::CARRY, self.acc > data);
+                self.status.set(Status::CARRY, self.acc >= data);
                 self.status.set(Status::ZERO, self.acc == data);
                 self.check_negative(data);
             }
             Instruction::CPX => {
                 let data = self.read();
-                self.status.set(Status::CARRY, self.x > data);
+                self.status.set(Status::CARRY, self.x >= data);
                 self.status.set(Status::ZERO, self.x == data);
                 self.check_negative(data);
             }
             Instruction::CPY => {
                 let data = self.read();
-                self.status.set(Status::CARRY, self.y > data);
+                self.status.set(Status::CARRY, self.y >= data);
                 self.status.set(Status::ZERO, self.y == data);
                 self.check_negative(data);
             }
@@ -773,14 +773,14 @@ impl Cpu6502 {
             }
             Instruction::JSR => {
                 let addr_bytes = (self.pc).to_le_bytes();
-                self.push_stack(addr_bytes[0]);
                 self.push_stack(addr_bytes[1]);
+                self.push_stack(addr_bytes[0]);
                 self.pc = self.addr;
                 self.cycles += 1;
             }
             Instruction::RTI => {
                 let flags = self.pop_stack();
-                self.status = Status::from_bits_truncate(flags);
+                self.status = Status::from_bits_truncate(flags) & !(Status::UNUSED | Status::BREAK);
                 let lo = self.pop_stack();
                 let hi = self.pop_stack();
                 self.pc = bytes_to_addr(hi, lo);
@@ -887,7 +887,7 @@ impl Cpu6502 {
                 self.check_negative(self.acc);
             }
             Instruction::PHP => {
-                self.push_stack(self.status.bits())
+                self.push_stack(self.status.bits() | 0x30)
             }
             Instruction::PLP => {
                 self.status = Status::from_bits_truncate(self.pop_stack());
