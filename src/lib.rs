@@ -3,4 +3,3 @@ extern crate bitflags;
 
 pub mod databus;
 pub mod devices;
-mod structs;

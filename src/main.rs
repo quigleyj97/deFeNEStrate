@@ -3,7 +3,6 @@ extern crate bitflags;
 
 pub mod databus;
 pub mod devices;
-mod structs;
 
 use std::cell::{RefCell};
 use std::rc::{Rc};
