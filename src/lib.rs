@@ -2,5 +2,5 @@
 extern crate bitflags;
 
 pub mod databus;
-pub mod emulator;
+pub mod devices;
 mod structs;

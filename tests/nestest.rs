@@ -17,7 +17,7 @@ use std::fs::File;
 use std::io::{SeekFrom, prelude::*};
 use std::path::Path;
 
-use defenestrate::emulator::Cpu6502;
+use defenestrate::devices::cpu::Cpu6502;
 use defenestrate::databus::Bus;
 
 #[test]

@@ -2,14 +2,14 @@
 extern crate bitflags;
 
 pub mod databus;
-pub mod emulator;
+pub mod devices;
 mod structs;
 
 use std::cell::{RefCell};
 use std::rc::{Rc};
 
 use databus::Bus;
-use emulator::Cpu6502;
+use devices::cpu::Cpu6502;
 
 fn main() {
     let bus = Bus::new();
