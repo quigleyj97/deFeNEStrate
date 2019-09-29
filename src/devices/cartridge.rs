@@ -22,7 +22,7 @@ pub trait Cartridge {
 }
 
 /// The simplest possible sort of cartridge
-struct NesMapper0Cart {
+pub struct NesMapper0Cart {
     prg_rom: Box<[u8]>,
     chr_rom: Box<[u8]>,
     is_16k: bool,
@@ -35,36 +35,36 @@ impl Cartridge for NesMapper0Cart {
         self.prg_rom[(addr - 0x8000) as usize]
     }
 
-    fn write_prg(&mut self, addr: u16, data: u8) {
+    fn write_prg(&mut self, _addr: u16, _data: u8) {
         // do nothing
     }
 
-    fn read_chr(&self, addr: u16) -> u8 {
+    fn read_chr(&self, _addr: u16) -> u8 {
         0 // unimplemented
     }
 
-    fn write_chr(&mut self, addr: u16, data: u8) {
+    fn write_chr(&mut self, _addr: u16, _data: u8) {
         // do nothing
     }
 }
 
 // Ideally we'd have a Cartridge that does this...
 impl NesMapper0Cart {
-    pub fn from_file(path: String) -> NesMapper0Cart {
+    pub fn from_file(path: &str) -> std::io::Result<NesMapper0Cart> {
         let path = Path::new(&path);
         let mut file = File::open(path).expect("Could not read NESTEST rom");
         file.seek(SeekFrom::Start(16)).unwrap(); // skip header
 
-        let mut prg_rom = Box::new([0u8; 16384]);
+        let mut prg_rom = Box::new([0u8; 16_384]);
         let mut chr_rom = Box::new([0u8; 8192]);
 
-        file.read(&mut prg_rom[..]);
-        file.read(&mut chr_rom[..]);
+        file.read_exact(&mut prg_rom[..])?;
+        file.read_exact(&mut chr_rom[..])?;
 
-        NesMapper0Cart {
+        Result::Ok(NesMapper0Cart {
             prg_rom,
             chr_rom,
             is_16k: true
-        }
+        })
     }
 }

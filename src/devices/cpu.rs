@@ -148,6 +148,10 @@ impl<T: Bus> Cpu6502<T> {
         self.status &= !flag;
     }
 
+    pub fn jmp(&mut self, addr: u16) {
+        self.pc = addr;
+    }
+
     fn load_opcode(&mut self) {
         let bus = self.bus.borrow();
         let opcode = bus.read(self.pc);
