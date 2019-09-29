@@ -4,32 +4,11 @@ extern crate bitflags;
 pub mod databus;
 pub mod devices;
 
-use std::cell::{RefCell};
-use std::rc::{Rc};
-
-use databus::Bus;
-use devices::cpu::Cpu6502;
+use devices::nes::NesEmulator;
 
 fn main() {
-    let bus = Bus::new();
+    let mut nes = NesEmulator::default();
+    println!("deFeNEStrate initialized");
 
-    let busref = Rc::new(RefCell::new(bus));
-
-    let mut cpu = Cpu6502::new(busref);
-    println!("CPU initialized");
-
-    println!("{}", cpu);
-    let mut instrs = 0;
-    loop {
-        cpu.exec();
-        loop {
-            let cycles = cpu.tick();
-            if cycles { break; }
-        }
-        println!("{}", cpu);
-        instrs += 1;
-        if instrs > 7 { break; }
-    }
-    cpu.reset();
-    println!("{}", cpu);
+    println!("{}", nes.step_debug());
 }

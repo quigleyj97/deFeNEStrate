@@ -1,4 +1,8 @@
-// Emulator for the MOS 6502
+/// Emulator for the MOS 6502
+///
+/// This does not include support for Binary Coded Decimal, which was omitted
+/// on the 2A03 variant used on the NES and Famicom. Support for BCD may be
+/// added later.
 use std::fmt;
 use std::cell::{RefCell};
 use std::rc::{Rc};
@@ -10,7 +14,7 @@ fn bytes_to_addr(lo: u8, hi: u8) -> u16 {
     (u16::from(lo) << 8) + u16::from(hi)
 }
 
-pub struct Cpu6502 {
+pub struct Cpu6502<T: Bus> {
     //region CPU Registers
     /// The Accumulator register
     acc: u8,
@@ -86,13 +90,22 @@ pub struct Cpu6502 {
 
     /// The opcode being executed
     instr: Instruction,
+
+    /// A reference to the address bus.
+    ///
+    /// # Note
+    ///
+    /// Busses are typically owned by a higher level struct, and should have
+    /// lifetimes equivalent to or exceeding the CPU lifetime.
+    ///
+    /// The bus should be set before executing instructions, and should not be
+    /// set more than once- this will result in undefined behavior.
+    bus: Rc<RefCell<T>>,
     //endregion
 
-    //region stuff
-    bus: Rc<RefCell<Bus>>,
 }
 
-impl Cpu6502 {
+impl<T: Bus> Cpu6502<T> {
     pub fn tick(&mut self) -> bool {
         self.tot_cycles += 1;
         if self.cycles > 0 {
@@ -882,17 +895,15 @@ impl Cpu6502 {
             //endregion
         }
     }
-}
 
-// Statics
-impl Cpu6502 {
+    // Statics
     /// Create a new CPU, connected to the given databus.
     ///
     /// # Note
     ///
     /// Default values are the NES power-up vals
     /// cf. http://wiki.nesdev.com/w/index.php/CPU_power_up_state
-    pub fn new(bus: Rc<RefCell<Bus>>) -> Cpu6502 {
+    pub fn new(bus: Rc<RefCell<T>>) -> Cpu6502<T> {
         Cpu6502 {
             acc: 0,
             x: 0,
@@ -915,7 +926,7 @@ impl Cpu6502 {
     }
 }
 
-impl fmt::Display for Cpu6502 {
+impl<T: Bus> fmt::Display for Cpu6502<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let bytes = self.instruction.to_le_bytes();
         let ops = match self.addr_mode {
