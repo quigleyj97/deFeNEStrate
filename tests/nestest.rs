@@ -11,54 +11,26 @@
 
 extern crate defenestrate;
 
-use std::cell::{RefCell};
-use std::rc::{Rc};
-use std::fs::File;
-use std::io::{SeekFrom, prelude::*};
-use std::path::Path;
-
-use defenestrate::devices::cpu::Cpu6502;
-use defenestrate::databus::Bus;
+use defenestrate::devices::{nes::NesEmulator, cartridge::NesMapper0Cart};
 
 #[test]
 fn nestest_exec() {
-    let bus = Bus::new();
+    let mut nes = NesEmulator::default();
 
-    let busref = Rc::new(RefCell::new(bus));
+    let cart = NesMapper0Cart::from_file("./tests/data/nestest.nes");
 
-    write_test(&busref);
-
-    let mut cpu = Cpu6502::new(busref);
-    println!("CPU initialized");
-
-    println!("{}", cpu);
-
-    let mut instrs = 0;
-    loop {
-        println!("{}", cpu.debug());
-        loop {
-            let cycles = cpu.tick();
-            if cycles { break; }
+    match cart {
+        Result::Err(e) => panic!("Failed to read nestest: {}", e),
+        Result::Ok(cart) => {
+            nes.load_cart(Box::new(cart));
         }
-        instrs += 1;
-        if instrs > 500 { break; }
     }
-    cpu.reset();
-    println!("{}", cpu);
+
+    nes.set_pc(0xC000);
+
+    for _ in 0..5000 {
+        println!("{}", nes.step_debug());
+    }
+
     assert_eq!(true, true);
-}
-
-fn write_test(busref: &Rc<RefCell<Bus>>) {
-    let path = Path::new("./tests/data/nestest.nes");
-    let mut file = File::open(path).expect("Could not read NESTEST rom");
-    file.seek(SeekFrom::Start(16)).unwrap(); // skip the header
-    let mut bus = busref.borrow_mut();
-
-    let mut pc = 0xC000;
-
-    for byte in file.bytes() {
-        if pc == 0xFFFF { return; }
-        bus.write(pc, byte.unwrap());
-        pc += 1;
-    }
 }
