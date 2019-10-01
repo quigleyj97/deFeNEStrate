@@ -28,9 +28,12 @@ fn nestest_exec() {
 
     nes.set_pc(0xC000);
 
-    for _ in 0..5000 {
+    for _ in 0..500 {
         println!("{}", nes.step_debug());
     }
 
-    assert_eq!(true, true);
+    assert_eq!(nes.read_bus(0x0000), 0x00);
+    assert_eq!(nes.read_bus(0x0001), 0x00);
+    assert_eq!(nes.read_bus(0x0002), 0x00);
+    assert_eq!(nes.read_bus(0x0003), 0x00);
 }

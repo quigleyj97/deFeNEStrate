@@ -4,15 +4,26 @@ extern crate bitflags;
 pub mod databus;
 pub mod devices;
 
+use std::env::args;
+use std::process;
 use devices::nes::NesEmulator;
 
 fn main() {
+    eprintln!("Initializing...");
+
     let mut nes = NesEmulator::default();
 
-    let cart = devices::cartridge::NesMapper0Cart::from_file("./tests/data/nestest.nes");
+    let args: Vec<String> = args().collect();
+
+    let cart_path = &args[1];
+
+    let cart = devices::cartridge::NesMapper0Cart::from_file(cart_path);
 
     match cart {
-        Result::Err(e) => panic!("Failed to read nestest: {}", e),
+        Result::Err(e) => {
+            eprintln!("Failed to read cart at {}: {}", cart_path, e);
+            process::exit(1);
+        }
         Result::Ok(cart) => {
             nes.load_cart(Box::new(cart));
         }
@@ -20,7 +31,7 @@ fn main() {
 
     nes.set_pc(0xC000);
 
-    println!("deFeNEStrate initialized");
+    eprintln!("deFeNEStrate initialized");
 
     for _ in 0..5000 {
         println!("{}", nes.step_debug());

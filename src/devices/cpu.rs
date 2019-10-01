@@ -586,7 +586,7 @@ impl<T: Bus> Cpu6502<T> {
             // ADC SBC
             Instruction::ADC => {
                 if self.status.contains(Status::DECIMAL) {
-                    println!(" [WARN] This emulator doesn't support BCD, but the BCD flag is set");
+                    eprintln!(" [WARN] This emulator doesn't support BCD, but the BCD flag is set");
                 }
                 let op = self.read();
                 let val = Wrapping(u16::from(self.acc))
@@ -600,7 +600,7 @@ impl<T: Bus> Cpu6502<T> {
             }
             Instruction::SBC => {
                 if self.status.contains(Status::DECIMAL) {
-                    println!(" [WARN] This emulator doesn't support BCD, but the BCD flag is set");
+                    eprintln!(" [WARN] This emulator doesn't support BCD, but the BCD flag is set");
                 }
                 let op = self.read();
                 let val = Wrapping(u16::from(self.acc))
@@ -703,7 +703,6 @@ impl<T: Bus> Cpu6502<T> {
                 let addr_lo = self.read_bus(0xFFFE);
                 let addr_hi = self.read_bus(0xFFFF);
                 self.pc = bytes_to_addr(addr_lo, addr_hi);
-                println!("BREAK");
             }
 
             //region Compare functions

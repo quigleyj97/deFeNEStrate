@@ -33,12 +33,23 @@ impl NesEmulator {
         status
     }
 
+    //region Test automation helpers
     /// Jump the CPU program counter to the given address.
     ///
     /// This is mainly useful for test automation.
     pub fn set_pc(&mut self, addr: u16) {
         self.cpu.jmp(addr);
     }
+
+    /// Read from the bus at a given address
+    ///
+    /// This is for test automation to read specific addresses and check for
+    /// errors in some comprehensive test ROMs
+    pub fn read_bus(&mut self, addr: u16) -> u8 {
+        let bus = self.busref.borrow_mut();
+        bus.read(addr)
+    }
+    //endregion
 
     pub fn load_cart(&mut self, cart: Box<dyn Cartridge>) {
         let mut bus = self.busref.borrow_mut();
