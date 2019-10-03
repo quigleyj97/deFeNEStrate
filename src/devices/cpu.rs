@@ -543,9 +543,11 @@ impl<T: Bus> Cpu6502<T> {
     }
 
     fn check_carry(&mut self, val: u16) {
-        if val & 0x10 == 0x10 {
+        if val & 0x100 == 0x100 {
             // an overflow occured
             self.set_flag(Status::CARRY);
+        } else {
+            self.clear_flag(Status::CARRY);
         }
     }
 
