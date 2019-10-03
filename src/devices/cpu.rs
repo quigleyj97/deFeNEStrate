@@ -708,9 +708,10 @@ impl<T: Bus> Cpu6502<T> {
             // CMP CPX CPY
             Instruction::CMP => {
                 let data = self.read();
-                self.status.set(Status::CARRY, self.acc >= data);
-                self.status.set(Status::ZERO, self.acc == data);
-                self.check_negative(data);
+                let res = Wrapping(self.acc) - Wrapping(data);
+                self.status.set(Status::CARRY, res >= Wrapping(0));
+                self.status.set(Status::ZERO, res == Wrapping(0));
+                self.check_negative(res.0);
             }
             Instruction::CPX => {
                 let data = self.read();
@@ -929,7 +930,7 @@ impl<T: Bus> Cpu6502<T> {
                 self.push_stack(self.status.bits() | 0x30)
             }
             Instruction::PLP => {
-                self.status = Status::from_bits_truncate(self.pop_stack());
+                self.status = Status::from_bits_truncate((self.pop_stack() & 0xEF) | 0x20);
                 self.cycles += 1;
             }
             //endregion
