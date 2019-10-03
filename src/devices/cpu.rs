@@ -624,7 +624,7 @@ impl<T: Bus> Cpu6502<T> {
                 let op = self.read();
                 let res = self.acc & op;
                 self.check_zero(res);
-                self.status = Status::from_bits_truncate((self.status.bits() & 0x3F) | (0xC0 & res));
+                self.status = Status::from_bits_truncate((self.status.bits() & 0x3F) | (0xC0 & op));
             }
             Instruction::EOR => {
                 self.acc ^= self.read();

@@ -39,11 +39,11 @@ NES work
 
 ## Test status
 
-Known failures:
+Known Nestest failures:
 
 | Error code  | Reason                                          |
 |-------------|-------------------------------------------------|
-| `0x1A`      | `AND`                                           |
+| ~~`0x1A`~~  | ~~`AND`~~ FIXED                                 |
 | `0x1E`      | `ADC` overflow/carry                            |
 | `0x1F`      | `ADC` BCD flag                                  |
 | `0x20`      | `ADC` other failure                             |
@@ -68,8 +68,8 @@ Known failures:
 | `0x72`      | `SBC`                                           |
 | `0x73`      | `SBC`                                           |
 | `0x74`      | `SBC`                                           |
-| `0x3F`      | `INY`/`DEY` flag failure                          |
-| `0x40`      | `INX`/`DEX` flag failure                          |
+| `0x3F`      | `INY`/`DEY` flag failure                        |
+| `0x40`      | `INX`/`DEX` flag failure                        |
 | `0x41`      | `TAY` did something bad                         |
 | `0x42`      | `TAX` did something bad                         |
 | `0x43`      | `TYA` did something bad                         |
