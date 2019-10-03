@@ -44,7 +44,7 @@ Known Nestest failures:
 | Error code  | Reason                                          |
 |-------------|-------------------------------------------------|
 | ~~`0x1A`~~  | ~~`AND`~~ FIXED                                 |
-| `0x1E`      | `ADC` overflow/carry                            |
+| ~~`0x1E`~~  | ~~`ADC` overflow/carry~~ FIXED                  |
 | `0x1F`      | `ADC` BCD flag                                  |
 | `0x20`      | `ADC` other failure                             |
 | `0x21`      | `ADC`                                           |

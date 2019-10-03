@@ -561,8 +561,10 @@ impl<T: Bus> Cpu6502<T> {
         let left = u16::from(left);
         let right = u16::from(right);
         let res = left + right;
-        if left^res & right^res & 0x80 != 0 {
+        if ((left^res) & (right^res)) & 0x80 != 0 {
             self.set_flag(Status::OVERFLOW);
+        } else {
+            self.clear_flag(Status::OVERFLOW);
         }
     }
 
