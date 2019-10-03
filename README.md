@@ -70,8 +70,8 @@ Known Nestest failures:
 | ~~`0x73`~~  | ~~`SBC`~~ FIXED                                 |
 | ~~`0x74`~~  | ~~`SBC`~~ FIXED                                 |
 | ~~`0x75`~~  | ~~`SBC`~~ FIXED                                 |
-| `0x3E`      | `INX`/`DEX`/`INY`/`DEY` did something bad NEW   |
-| `0x3F`      | `INY`/`DEY` flag failure                        |
+| ~~`0x3E`~~  | ~~`INX`/`DEX`/`INY`/`DEY` did someth...~~ FIXED |
+| ~~`0x3F`~~  | ~~`INY`/`DEY` flag failure~~ FIXED              |
 | ~~`0x40`~~  | ~~`INX`/`DEX` flag failure~~ FIXED              |
 | ~~`0x41`~~  | ~~`TAY` did something bad~~ FIXED               |
 | ~~`0x42`~~  | ~~`TAX` did something bad~~ FIXED               |

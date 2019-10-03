@@ -896,7 +896,7 @@ impl<T: Bus> Cpu6502<T> {
                 self.check_negative(self.y);
             }
             Instruction::DEY => {
-                self.y = (Wrapping(self.x) - Wrapping(1)).0;
+                self.y = (Wrapping(self.y) - Wrapping(1)).0;
                 self.check_zero(self.y);
                 self.check_negative(self.y);
             }
