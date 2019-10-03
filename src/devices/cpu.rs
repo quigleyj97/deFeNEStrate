@@ -113,8 +113,8 @@ pub struct Cpu6502<T: Bus> {
 
 impl<T: Bus> Cpu6502<T> {
     pub fn tick(&mut self) -> bool {
-        self.tot_cycles += 1;
         if self.cycles > 0 {
+            self.tot_cycles += 1;
             self.cycles -= 1;
             return false;
         }
@@ -429,7 +429,6 @@ impl<T: Bus> Cpu6502<T> {
 
         match self.addr_mode {
             AddressingMode::Abs => {
-                self.cycles += 2;
                 self.adv_pc(2);
                 bytes_to_addr(ops[2], ops[1])
             }
@@ -814,7 +813,7 @@ impl<T: Bus> Cpu6502<T> {
                 self.push_stack(addr_bytes[1]);
                 self.push_stack(addr_bytes[0]);
                 self.pc = self.addr;
-                self.cycles += 1;
+                self.cycles += 2;
             }
             Instruction::RTI => {
                 let flags = self.pop_stack();
@@ -827,6 +826,7 @@ impl<T: Bus> Cpu6502<T> {
                 let lo = self.pop_stack();
                 let hi = self.pop_stack();
                 self.pc = bytes_to_addr(hi, lo);
+                self.cycles += 2;
             }
             //endregion
 
@@ -923,12 +923,14 @@ impl<T: Bus> Cpu6502<T> {
                 self.acc = self.pop_stack();
                 self.check_zero(self.acc);
                 self.check_negative(self.acc);
+                self.cycles += 1;
             }
             Instruction::PHP => {
                 self.push_stack(self.status.bits() | 0x30)
             }
             Instruction::PLP => {
                 self.status = Status::from_bits_truncate(self.pop_stack());
+                self.cycles += 1;
             }
             //endregion
         }
@@ -969,7 +971,7 @@ impl<T: Bus> Cpu6502<T> {
             // internal state
             bus,
             cycles: 0,
-            tot_cycles: 1,
+            tot_cycles: 7,
             instruction: 0xEA,
             addr: 0,
             addr_mode: AddressingMode::Impl,
