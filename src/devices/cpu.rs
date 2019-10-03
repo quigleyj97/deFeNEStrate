@@ -713,21 +713,23 @@ impl<T: Bus> Cpu6502<T> {
             Instruction::CMP => {
                 let data = self.read();
                 let res = Wrapping(self.acc) - Wrapping(data);
-                self.status.set(Status::CARRY, res >= Wrapping(0));
-                self.status.set(Status::ZERO, res == Wrapping(0));
+                self.status.set(Status::CARRY, self.acc >= data);
+                self.check_zero(res.0);
                 self.check_negative(res.0);
             }
             Instruction::CPX => {
                 let data = self.read();
+                let res = Wrapping(self.x) - Wrapping(data);
                 self.status.set(Status::CARRY, self.x >= data);
-                self.status.set(Status::ZERO, self.x == data);
-                self.check_negative(data);
+                self.check_zero(res.0);
+                self.check_negative(res.0);
             }
             Instruction::CPY => {
                 let data = self.read();
+                let res = Wrapping(self.y) - Wrapping(data);
                 self.status.set(Status::CARRY, self.y >= data);
-                self.status.set(Status::ZERO, self.y == data);
-                self.check_negative(data);
+                self.check_zero(res.0);
+                self.check_negative(res.0);
             }
             // endregion
 

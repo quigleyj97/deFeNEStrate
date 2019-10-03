@@ -54,15 +54,15 @@ Known Nestest failures:
 | ~~`0x26`~~  | ~~`CMP` flag failure~~ FIXED                    |
 | ~~`0x27`~~  | ~~`CMP` flag failure~~ FIXED                    |
 | ~~`0x28`~~  | ~~`CMP` flag failure~~ FIXED                    |
-| `0x29`      | `CMP` flag failure NEW                          |
-| `0x2B`      | `CPY` flag failure                              |
-| `0x2D`      | `CPY` flag failure                              |
-| `0x2E`      | `CPY` flag failure                              |
-| `0x2F`      | `CPY` flag failure                              |
+| ~~`0x29`~~  | ~~`CMP` flag failure~~ FIXED                    |
+| ~~`0x2B`~~  | ~~`CPY` flag failure~~ FIXED                    |
+| ~~`0x2D`~~  | ~~`CPY` flag failure~~ FIXED                    |
+| ~~`0x2E`~~  | ~~`CPY` flag failure~~ FIXED                    |
+| ~~`0x2F`~~  | ~~`CPY` flag failure~~ FIXED                    |
 | ~~`0x32`~~  | ~~`CPX` flag failure~~ FIXED                    |
-| `0x34`      | `CPX` flag failure                              |
-| `0x35`      | `CPX` flag failure                              |
-| `0x36`      | `CPX` flag failure                              |
+| ~~`0x34`~~  | ~~`CPX` flag failure~~ FIXED                    |
+| ~~`0x35`~~  | ~~`CPX` flag failure~~ FIXED                    |
+| ~~`0x36`~~  | ~~`CPX` flag failure~~ FIXED                    |
 | ~~`0x3A`~~  | ~~`LDX` flag failure~~ FIXED                    |
 | ~~`0x3C`~~  | ~~`LDY` flag failure~~ FIXED                    |
 | `0x71`      | `SBC`                                           |
