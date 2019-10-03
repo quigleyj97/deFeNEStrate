@@ -429,6 +429,7 @@ impl<T: Bus> Cpu6502<T> {
 
         match self.addr_mode {
             AddressingMode::Abs => {
+                self.cycles += 1;
                 self.adv_pc(2);
                 bytes_to_addr(ops[2], ops[1])
             }
@@ -812,15 +813,20 @@ impl<T: Bus> Cpu6502<T> {
             //region Jumps
             // JMP JSR RTI RTS
             Instruction::JMP => {
-                self.cycles += 1;
+                if self.addr_mode != AddressingMode::Abs {
+                    self.cycles += 1;
+                }
                 self.pc = self.addr;
             }
             Instruction::JSR => {
+                if self.addr_mode != AddressingMode::Abs {
+                    self.cycles += 1;
+                }
                 let addr_bytes = (self.pc).to_le_bytes();
                 self.push_stack(addr_bytes[1]);
                 self.push_stack(addr_bytes[0]);
                 self.pc = self.addr;
-                self.cycles += 2;
+                self.cycles += 1;
             }
             Instruction::RTI => {
                 let flags = self.pop_stack();
@@ -997,7 +1003,7 @@ impl<T: Bus> fmt::Display for Cpu6502<T> {
             | AddressingMode::AbsX
             | AddressingMode::AbsY
             | AddressingMode::AbsInd => format!("{:02X} {:02X} {:02X}", bytes[0], bytes[1], bytes[2]),
-            AddressingMode::Accum | AddressingMode::Impl => format!("{:8<2X}", bytes[0]),
+            AddressingMode::Accum | AddressingMode::Impl => format!("{:8<02X}", bytes[0]),
             _ => format!("{:02X} {:02X}   ", bytes[0], bytes[1]),
         };
 
@@ -1005,8 +1011,14 @@ impl<T: Bus> fmt::Display for Cpu6502<T> {
         let bus = self.bus.borrow();
         let data = bus.read(self.addr);
         let addr = self.addr;
+        let is_jmp = self.instr == Instruction::JMP || self.instr == Instruction::JSR;
         let instr = match self.addr_mode {
-            AddressingMode::Abs => format!("{:3?} ${:04X}", self.instr, addr),
+            AddressingMode::Abs if !is_jmp => {
+                format!("{:3?} ${:04X} = {:02X}", self.instr, addr, data)
+            }
+            AddressingMode::Abs if is_jmp => {
+                format!("{:3?} ${:04X}", self.instr, addr)
+            }
             AddressingMode::AbsX => format!("{:3?} ${:04X},X @ {:04X} = {:02X}", self.instr, operand_bytes, addr, data),
             AddressingMode::AbsY => format!("{:3?} ${:04X},Y @ {:04X} = {:02X}", self.instr, operand_bytes, addr, data),
             AddressingMode::AbsInd => format!("{:3?} (${:04X}) = {:04X}", self.instr, operand_bytes, addr),
