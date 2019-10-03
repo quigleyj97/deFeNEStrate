@@ -65,11 +65,11 @@ Known Nestest failures:
 | ~~`0x36`~~  | ~~`CPX` flag failure~~ FIXED                    |
 | ~~`0x3A`~~  | ~~`LDX` flag failure~~ FIXED                    |
 | ~~`0x3C`~~  | ~~`LDY` flag failure~~ FIXED                    |
-| `0x71`      | `SBC`                                           |
+| ~~`0x71`~~  | ~~`SBC`~~ FIXED                                 |
 | ~~`0x72`~~  | ~~`SBC`~~ FIXED                                 |
-| `0x73`      | `SBC`                                           |
+| ~~`0x73`~~  | ~~`SBC`~~ FIXED                                 |
 | ~~`0x74`~~  | ~~`SBC`~~ FIXED                                 |
-| `0x75`      | `SBC` NEW                                       |
+| ~~`0x75`~~  | ~~`SBC`~~ FIXED                                 |
 | `0x3E`      | `INX`/`DEX`/`INY`/`DEY` did something bad NEW   |
 | `0x3F`      | `INY`/`DEY` flag failure                        |
 | ~~`0x40`~~  | ~~`INX`/`DEX` flag failure~~ FIXED              |

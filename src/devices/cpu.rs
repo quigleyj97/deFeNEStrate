@@ -610,7 +610,7 @@ impl<T: Bus> Cpu6502<T> {
                     - Wrapping(u16::from(op))
                     - Wrapping(if !self.status.contains(Status::CARRY) { 1 } else { 0 });
                 self.check_carry(!val.0);
-                self.check_overflow(self.acc, op);
+                self.check_overflow(self.acc, !op);
                 self.acc = (0xFF & val.0) as u8;
                 self.check_zero(self.acc);
                 self.check_negative(self.acc);
