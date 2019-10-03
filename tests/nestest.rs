@@ -28,7 +28,7 @@ fn nestest_exec() {
 
     nes.set_pc(0xC000);
 
-    for _ in 0..500 {
+    for _ in 0..9000 {
         println!("{}", nes.step_debug());
     }
 

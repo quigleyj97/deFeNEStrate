@@ -697,13 +697,13 @@ impl<T: Bus> Cpu6502<T> {
             //endregion
 
             Instruction::BRK => {
-                // TODO: Set interrupt
-                self.set_flag(Status::BREAK);
-                let status = self.status.bits() ^ 0x30;
-                self.push_stack(status);
                 let addr_bytes = self.pc.to_le_bytes();
                 self.push_stack(addr_bytes[1]);
                 self.push_stack(addr_bytes[0]);
+                self.set_flag(Status::BREAK);
+                self.set_flag(Status::UNUSED);
+                let status = self.status.bits();
+                self.push_stack(status);
                 let addr_lo = self.read_bus(0xFFFE);
                 let addr_hi = self.read_bus(0xFFFF);
                 self.pc = bytes_to_addr(addr_lo, addr_hi);
@@ -822,7 +822,7 @@ impl<T: Bus> Cpu6502<T> {
                 if self.addr_mode != AddressingMode::Abs {
                     self.cycles += 1;
                 }
-                let addr_bytes = (self.pc).to_le_bytes();
+                let addr_bytes = (self.pc - 1).to_le_bytes();
                 self.push_stack(addr_bytes[1]);
                 self.push_stack(addr_bytes[0]);
                 self.pc = self.addr;
@@ -830,15 +830,16 @@ impl<T: Bus> Cpu6502<T> {
             }
             Instruction::RTI => {
                 let flags = self.pop_stack();
-                self.status = Status::from_bits_truncate(flags) & !(Status::UNUSED | Status::BREAK);
+                self.status = Status::from_bits_truncate(flags);
                 let lo = self.pop_stack();
                 let hi = self.pop_stack();
                 self.pc = bytes_to_addr(hi, lo);
+                self.cycles += 1;
             }
             Instruction::RTS => {
                 let lo = self.pop_stack();
                 let hi = self.pop_stack();
-                self.pc = bytes_to_addr(hi, lo);
+                self.pc = bytes_to_addr(hi, lo) + 1;
                 self.cycles += 2;
             }
             //endregion
@@ -951,11 +952,13 @@ impl<T: Bus> Cpu6502<T> {
 
     fn run_interrupt(&mut self) -> bool {
         if !self.interrupt_pending { return false; }
-        let status = self.status.bits() ^ 0x20;
-        self.push_stack(status);
         let addr_bytes = self.pc.to_le_bytes();
         self.push_stack(addr_bytes[1]);
         self.push_stack(addr_bytes[0]);
+        self.clear_flag(Status::BREAK);
+        self.set_flag(Status::UNUSED);
+        let status = self.status.bits();
+        self.push_stack(status);
         let addr = if self.maskable_interrupt { 0xFFFE } else { 0xFFFA };
         let addr_lo = self.read_bus(addr);
         let addr_hi = self.read_bus(addr + 1);
@@ -1013,10 +1016,9 @@ impl<T: Bus> fmt::Display for Cpu6502<T> {
         let addr = self.addr;
         let is_jmp = self.instr == Instruction::JMP || self.instr == Instruction::JSR;
         let instr = match self.addr_mode {
-            AddressingMode::Abs if !is_jmp => {
+            AddressingMode::Abs => if !is_jmp {
                 format!("{:3?} ${:04X} = {:02X}", self.instr, addr, data)
-            }
-            AddressingMode::Abs if is_jmp => {
+            } else {
                 format!("{:3?} ${:04X}", self.instr, addr)
             }
             AddressingMode::AbsX => format!("{:3?} ${:04X},X @ {:04X} = {:02X}", self.instr, operand_bytes, addr, data),
@@ -1028,6 +1030,7 @@ impl<T: Bus> fmt::Display for Cpu6502<T> {
             AddressingMode::ZPY => format!("{:3?} ${:02X},Y @ {:02X} = {:02X}", self.instr, bytes[1], self.y, addr),
             AddressingMode::Impl => format!("{:3?}", self.instr),
             AddressingMode::Rel => format!("{:3?} ${:04X}", self.instr, addr),
+            AddressingMode::Accum => format!("{:3?} A", self.instr),
             _ => format!("{:3?} {:02X} {:02X} <TODO>", self.instr, bytes[1], bytes[2])
         };
         write!(

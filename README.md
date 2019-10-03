@@ -78,4 +78,4 @@ Known Nestest failures:
 | ~~`0x43`~~  | ~~`TYA` did something bad~~ FIXED               |
 | ~~`0x44`~~  | ~~`TXA` did something bad~~ FIXED               |
 | ~~`0x45`~~  | ~~`TXS` did something bad, or flag f...~~ FIXED |
-| `0x47`      | `JSR` didn't work as expected                   |
+| ~~`0x47`~~  | ~~`JSR` didn't work as expected~~ FIXED         |
