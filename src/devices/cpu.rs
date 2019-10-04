@@ -648,9 +648,17 @@ impl<T: Bus> Cpu6502<T> {
                 let op = self.read();
                 let res = u16::from(op) << 1;
                 self.check_carry(res);
-                self.acc = (0xFF & res) as u8;
-                self.check_zero(self.acc);
-                self.check_negative(self.acc);
+                let res = (0xFF & res) as u8;
+                self.check_zero(res);
+                self.check_negative(res);
+                // Cycle corrections
+                if self.addr_mode == AddressingMode::ZP || self.addr_mode == AddressingMode::Abs {
+                    self.cycles += 1;
+                };
+                match self.addr_mode {
+                    AddressingMode::Accum => { self.acc = res }
+                    _ => self.write(res)
+                }
             }
 
             //region Branch instructions
@@ -767,9 +775,15 @@ impl<T: Bus> Cpu6502<T> {
                 // Finally, since this _could_ go to the accumulator, we need to
                 // check for that addressing mode
                 match self.addr_mode {
+                    AddressingMode::ZP => {
+                        self.cycles += 1;
+                        self.write(data);
+                    },
                     AddressingMode::Accum => self.acc = data,
                     _ => self.write(data)
                 };
+                // cycle count correction
+                if self.addr_mode == AddressingMode::Abs { self.cycles += 1 };
             }
             Instruction::ROR => {
                 // See my notes on the LSR instruction, I do a similar trick
@@ -785,6 +799,10 @@ impl<T: Bus> Cpu6502<T> {
                     AddressingMode::Accum => self.acc = data,
                     _ => self.write(data)
                 };
+                // cycle count correction
+                if self.addr_mode == AddressingMode::Abs || self.addr_mode == AddressingMode::ZP {
+                    self.cycles += 1
+                };
             }
             Instruction::ROL => {
                 let data = (u16::from(self.read()) << 1)
@@ -796,6 +814,10 @@ impl<T: Bus> Cpu6502<T> {
                 match self.addr_mode {
                     AddressingMode::Accum => self.acc = data,
                     _ => self.write(data)
+                };
+                // cycle count correction
+                if self.addr_mode == AddressingMode::Abs || self.addr_mode == AddressingMode::ZP {
+                    self.cycles += 1
                 };
             }
             //endregion
