@@ -436,8 +436,8 @@ impl<T: Bus> Cpu6502<T> {
             AddressingMode::AbsInd => {
                 let addr = bytes_to_addr(ops[2], ops[1]);
                 self.adv_pc(2);
-                let lo = self.read_bus(addr);
                 let hi = self.read_bus(addr + 1);
+                let lo = self.read_bus(addr);
                 // TODO: JMP,AbsInd should get the right # of cycles
                 self.cycles += 1;
                 bytes_to_addr(hi, lo)
@@ -482,7 +482,6 @@ impl<T: Bus> Cpu6502<T> {
                 let lo = self.read_bus(u16::from(ops[1]));
                 // wrap cast to make sure Rust doesn't expand either op prematurely
                 let hi = self.read_bus(u16::from(ops[1]) + 1);
-                self.cycles += 1;
                 if (u16::from(self.y) + u16::from(ops[1])) & 0x0100 == 0x0100 {
                     self.cycles += 1; // oops cycle
                 }
@@ -1033,7 +1032,7 @@ impl<T: Bus> fmt::Display for Cpu6502<T> {
             _ => format!("{:02X} {:02X}   ", bytes[0], bytes[1]),
         };
 
-        let operand_bytes = bytes_to_addr(bytes[1], bytes[2]);
+        let operand_bytes = bytes_to_addr(bytes[2], bytes[1]);
         let bus = self.bus.borrow();
         let data = bus.read(self.addr);
         let addr = self.addr;
@@ -1064,8 +1063,22 @@ impl<T: Bus> fmt::Display for Cpu6502<T> {
                     addr,
                     data
                 )
+            },
+            AddressingMode::IndY => {
+                let ind = bytes_to_addr(
+                    bus.read(u16::from(bytes[1]) + 1),
+                    bus.read(u16::from(bytes[1]))
+                );
+                let sum = Wrapping(u16::from(self.y)) + Wrapping(ind);
+                format!(
+                    "{:3?} (${:02X}),Y = {:04X} @ {:04X} = {:02X}",
+                    self.instr,
+                    bytes[1],
+                    sum.0,
+                    addr,
+                    data
+                )
             }
-            _ => format!("{:3?} {:02X} {:02X} <TODO>", self.instr, bytes[1], bytes[2])
         };
         write!(
             f,
