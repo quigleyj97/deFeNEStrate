@@ -30,6 +30,9 @@ pub struct NesMapper0Cart {
 
 impl Cartridge for NesMapper0Cart {
     fn read_prg(&self, addr: u16) -> u8 {
+        if addr < 0x8000 {
+            return 0; // open bus
+        }
         // 16k prg roms are mirrored
         let addr = if self.is_16k { addr & 0xBFFF } else { addr };
         self.prg_rom[(addr - 0x8000) as usize]

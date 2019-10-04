@@ -471,8 +471,9 @@ impl<T: Bus> Cpu6502<T> {
             AddressingMode::Impl => 0x0000,
             AddressingMode::IndX => {
                 self.adv_pc(1);
-                let lo = self.read_bus(u16::from(ops[1] + self.x));
-                let hi = self.read_bus(u16::from(ops[1] + self.x + 1));
+                let val = Wrapping(ops[1]) + Wrapping(self.x);
+                let lo = self.read_bus(u16::from(val.0));
+                let hi = self.read_bus(u16::from(val.0) + 1);
                 self.cycles += 2;
                 bytes_to_addr(lo, hi)
             }
@@ -480,7 +481,7 @@ impl<T: Bus> Cpu6502<T> {
                 self.adv_pc(1);
                 let lo = self.read_bus(u16::from(ops[1]));
                 // wrap cast to make sure Rust doesn't expand either op prematurely
-                let hi = self.read_bus(u16::from((ops[1] + 1) as u8));
+                let hi = self.read_bus(u16::from(ops[1]) + 1);
                 self.cycles += 1;
                 if (u16::from(self.y) + u16::from(ops[1])) & 0x0100 == 0x0100 {
                     self.cycles += 1; // oops cycle
@@ -534,11 +535,11 @@ impl<T: Bus> Cpu6502<T> {
         let addr = bytes_to_addr(0x01, self.stack);
         bus.write(addr, data);
         self.cycles += 1;
-        self.stack -= 1;
+        self.stack = (Wrapping(self.stack) - Wrapping(1)).0;
     }
 
     fn pop_stack(&mut self) -> u8 {
-        self.stack += 1;
+        self.stack = (Wrapping(self.stack) + Wrapping(1)).0;
         let addr = bytes_to_addr(0x01, self.stack);
         self.read_bus(addr)
     }
@@ -737,14 +738,14 @@ impl<T: Bus> Cpu6502<T> {
             //region Memory functions
             // DEC INC LSR ROL ROR
             Instruction::DEC => {
-                let op = self.read() - 1;
+                let op = (Wrapping(self.read()) - Wrapping(1)).0;
                 self.cycles += 1;
                 self.write(op);
                 self.check_zero(op);
                 self.check_negative(op);
             }
             Instruction::INC => {
-                let op = self.read() + 1;
+                let op = (Wrapping(self.read()) + Wrapping(1)).0;
                 self.cycles += 1;
                 self.write(op);
                 self.check_zero(op);
