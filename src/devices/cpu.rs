@@ -473,9 +473,9 @@ impl<T: Bus> Cpu6502<T> {
                 self.adv_pc(1);
                 let val = Wrapping(ops[1]) + Wrapping(self.x);
                 let lo = self.read_bus(u16::from(val.0));
-                let hi = self.read_bus(u16::from(val.0) + 1);
-                self.cycles += 2;
-                bytes_to_addr(lo, hi)
+                let hi = self.read_bus(0xFF & (u16::from(val.0) + 1));
+                self.cycles += 1;
+                bytes_to_addr(hi, lo)
             }
             AddressingMode::IndY => {
                 self.adv_pc(1);
@@ -486,7 +486,7 @@ impl<T: Bus> Cpu6502<T> {
                 if (u16::from(self.y) + u16::from(ops[1])) & 0x0100 == 0x0100 {
                     self.cycles += 1; // oops cycle
                 }
-                bytes_to_addr(lo, hi) + u16::from(self.y)
+                (Wrapping(bytes_to_addr(hi, lo)) + Wrapping(u16::from(self.y))).0
             }
             AddressingMode::Rel => {
                 self.adv_pc(1);
@@ -494,15 +494,15 @@ impl<T: Bus> Cpu6502<T> {
             },
             AddressingMode::ZP => {
                 self.adv_pc(1);
-                bytes_to_addr(ops[1], 0)
+                bytes_to_addr(0, ops[1])
             }
             AddressingMode::ZPX => {
                 self.adv_pc(1);
-                bytes_to_addr((Wrapping(ops[1]) + Wrapping(self.x)).0, 0)
+                bytes_to_addr(0, (Wrapping(ops[1]) + Wrapping(self.x)).0)
             }
             AddressingMode::ZPY => {
                 self.adv_pc(1);
-                bytes_to_addr((Wrapping(ops[1]) + Wrapping(self.y)).0, 0)
+                bytes_to_addr(0, (Wrapping(ops[1]) + Wrapping(self.y)).0)
             }
         }
     }
@@ -771,7 +771,7 @@ impl<T: Bus> Cpu6502<T> {
                     _ => self.write(data)
                 };
             }
-            Instruction::ROL => {
+            Instruction::ROR => {
                 // See my notes on the LSR instruction, I do a similar trick
                 // here (for similar reasons)
                 let data = u16::from(self.read()) << 7
@@ -786,8 +786,8 @@ impl<T: Bus> Cpu6502<T> {
                     _ => self.write(data)
                 };
             }
-            Instruction::ROR => {
-                let data = u16::from(self.read() << 1)
+            Instruction::ROL => {
+                let data = (u16::from(self.read()) << 1)
                     | if self.status.contains(Status::CARRY) { 0x01 } else { 0x00 };
                 self.status.set(Status::CARRY, data & 0x01_00 == 0x01_00);
                 let data: u8 = (data & 0xFF) as u8;
@@ -1026,12 +1026,23 @@ impl<T: Bus> fmt::Display for Cpu6502<T> {
             AddressingMode::AbsY => format!("{:3?} ${:04X},Y @ {:04X} = {:02X}", self.instr, operand_bytes, addr, data),
             AddressingMode::AbsInd => format!("{:3?} (${:04X}) = {:04X}", self.instr, operand_bytes, addr),
             AddressingMode::Imm => format!("{:3?} #${:02X}", self.instr, bytes[1]),
-            AddressingMode::ZP => format!("{:3?} ${:02X} = {:02X}", self.instr, bytes[1], data),
+            AddressingMode::ZP => format!("{:3?} ${:02X} = {:02X}", self.instr, addr, data),
             AddressingMode::ZPX => format!("{:3?} ${:02X},X @ {:02X} = {:02X}", self.instr, bytes[1], self.x, addr),
             AddressingMode::ZPY => format!("{:3?} ${:02X},Y @ {:02X} = {:02X}", self.instr, bytes[1], self.y, addr),
             AddressingMode::Impl => format!("{:3?}", self.instr),
             AddressingMode::Rel => format!("{:3?} ${:04X}", self.instr, addr),
             AddressingMode::Accum => format!("{:3?} A", self.instr),
+            AddressingMode::IndX => {
+                let sum = Wrapping(self.x) + Wrapping(bytes[1]);
+                format!(
+                    "{:3?} (${:02X},X) @ {:02X} = {:04X} = {:02X}",
+                    self.instr,
+                    bytes[1],
+                    sum,
+                    addr,
+                    data
+                )
+            }
             _ => format!("{:3?} {:02X} {:02X} <TODO>", self.instr, bytes[1], bytes[2])
         };
         write!(
