@@ -831,7 +831,7 @@ impl<T: Bus> Cpu6502<T> {
             }
             Instruction::RTI => {
                 let flags = self.pop_stack();
-                self.status = Status::from_bits_truncate(flags);
+                self.status = Status::from_bits_truncate(flags) | Status::UNUSED;
                 let lo = self.pop_stack();
                 let hi = self.pop_stack();
                 self.pc = bytes_to_addr(hi, lo);
