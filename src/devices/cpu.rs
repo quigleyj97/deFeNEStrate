@@ -482,7 +482,7 @@ impl<T: Bus> Cpu6502<T> {
                 let lo = self.read_bus(u16::from(ops[1]));
                 // wrap cast to make sure Rust doesn't expand either op prematurely
                 let hi = self.read_bus(u16::from(ops[1]) + 1);
-                if (u16::from(self.y) + u16::from(ops[1])) & 0x0100 == 0x0100 {
+                if (u16::from(self.y) + u16::from(lo)) & 0x0100 == 0x0100 {
                     self.cycles += 1; // oops cycle
                 }
                 (Wrapping(bytes_to_addr(hi, lo)) + Wrapping(u16::from(self.y))).0
@@ -1069,12 +1069,11 @@ impl<T: Bus> fmt::Display for Cpu6502<T> {
                     bus.read(u16::from(bytes[1]) + 1),
                     bus.read(u16::from(bytes[1]))
                 );
-                let sum = Wrapping(u16::from(self.y)) + Wrapping(ind);
                 format!(
                     "{:3?} (${:02X}),Y = {:04X} @ {:04X} = {:02X}",
                     self.instr,
                     bytes[1],
-                    sum.0,
+                    ind,
                     addr,
                     data
                 )
