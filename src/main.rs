@@ -4,9 +4,9 @@ extern crate bitflags;
 pub mod databus;
 pub mod devices;
 
+use devices::nes::NesEmulator;
 use std::env::args;
 use std::process;
-use devices::nes::NesEmulator;
 
 fn main() {
     eprintln!("Initializing...");

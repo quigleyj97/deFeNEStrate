@@ -1,12 +1,13 @@
-/// A module representing the Nintendo Entertainment System.
-///
-/// Internally, the NES is a Bus with associated devices, and directly manages
-/// linkages between the 2A03 and it's various peripherals, as well as the CPU
-/// and PPU.
+//! A module representing the Nintendo Entertainment System.
+//!
+//! Internally, the NES is a Bus with associated devices, and directly manages
+//! linkages between the 2A03 and it's various peripherals, as well as the CPU
+//! and PPU.
 
-use std::cell::{RefCell};
-use std::rc::{Rc};
-use super::{cpu::Cpu6502, cartridge::Cartridge};
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use super::{cartridge::Cartridge, cpu::Cpu6502};
 use crate::databus::Bus;
 
 // This is what owns the CPU and bus
@@ -20,7 +21,9 @@ impl NesEmulator {
         self.cpu.exec();
         loop {
             let done_spinning = self.cpu.tick();
-            if done_spinning { break; }
+            if done_spinning {
+                break;
+            }
         }
     }
 
@@ -28,7 +31,9 @@ impl NesEmulator {
         let status = self.cpu.debug();
         loop {
             let done_spinning = self.cpu.tick();
-            if done_spinning { break; }
+            if done_spinning {
+                break;
+            }
         }
         status
     }
@@ -81,12 +86,11 @@ impl Bus for NesBus {
         if addr < 0x2000 {
             // AND with 0x07FF to implement the RAM mirrors
             return self.ram[(addr & 0x07FF) as usize];
-        }
-        else if addr > 0x401F {
+        } else if addr > 0x401F {
             // Cart
             return match &self.cart {
                 Option::None => 0,
-                Option::Some(cart) => cart.read_prg(addr)
+                Option::Some(cart) => cart.read_prg(addr),
             };
         }
         // Open bus
@@ -98,12 +102,11 @@ impl Bus for NesBus {
     fn write(&mut self, addr: u16, data: u8) {
         if addr < 0x2000 {
             self.ram[(addr & 0x07FF) as usize] = data;
-        }
-        else if addr > 0x401F {
+        } else if addr > 0x401F {
             // Cart
             match &mut self.cart {
-                Option::None => {},
-                Option::Some(cart) => cart.write_prg(addr, data)
+                Option::None => {}
+                Option::Some(cart) => cart.write_prg(addr, data),
             }
         }
     }
@@ -113,7 +116,7 @@ impl Default for NesBus {
     fn default() -> NesBus {
         NesBus {
             ram: Box::new([0u8; 2048]),
-            cart: Option::None
+            cart: Option::None,
         }
     }
 }

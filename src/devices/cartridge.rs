@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{SeekFrom, prelude::*};
+use std::io::{prelude::*, SeekFrom};
 use std::path::Path;
 
 /// The interface for a NES Cart.
@@ -67,7 +67,7 @@ impl NesMapper0Cart {
         Result::Ok(NesMapper0Cart {
             prg_rom,
             chr_rom,
-            is_16k: true
+            is_16k: true,
         })
     }
 }
