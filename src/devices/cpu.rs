@@ -281,7 +281,10 @@ impl<T: Bus> Cpu6502<T> {
                     0b101 => Instruction::LDA,
                     0b110 => Instruction::CMP,
                     0b111 => Instruction::SBC,
-                    _ => panic!("Invalid opcode"),
+                    _ => {
+                        eprintln!(" [WARN] Unknown opcode: {:02X}", opcode);
+                        Instruction::NOP
+                    },
                 };
                 self.addr_mode = match addr_mode {
                     0b000 => AddressingMode::IndX,
@@ -292,7 +295,10 @@ impl<T: Bus> Cpu6502<T> {
                     0b101 => AddressingMode::ZPX,
                     0b110 => AddressingMode::AbsY,
                     0b111 => AddressingMode::AbsX,
-                    _ => panic!("Invalid addressing mode"),
+                    _ => {
+                        eprintln!(" [WARN] Unknown opcode in addr mode resolution: {:02X}", opcode);
+                        AddressingMode::Impl
+                    },
                 };
             }
             0b10 => {
@@ -305,7 +311,10 @@ impl<T: Bus> Cpu6502<T> {
                     0b101 => Instruction::LDX,
                     0b110 => Instruction::DEC,
                     0b111 => Instruction::INC,
-                    _ => panic!("Invalid opcode"),
+                    _ => {
+                        eprintln!(" [WARN] Unknown opcode: {:02X}", opcode);
+                        Instruction::NOP
+                    },
                 };
                 // the STX and LDX instructions should target the Y index register instead
                 let use_y = self.instr == Instruction::STX || self.instr == Instruction::LDX;
@@ -330,7 +339,10 @@ impl<T: Bus> Cpu6502<T> {
                             AddressingMode::AbsX
                         }
                     }
-                    _ => panic!("Invalid addressing mode"),
+                    _ => {
+                        eprintln!(" [WARN] Unknown opcode in addr mode resolution: {:02X}", opcode);
+                        AddressingMode::Impl
+                    },
                 }
             }
             0b00 => {
@@ -355,7 +367,10 @@ impl<T: Bus> Cpu6502<T> {
                         0xD => Instruction::CLD,
                         0xE => Instruction::INX,
                         0xF => Instruction::SED,
-                        _ => panic!("Invalid instruction"),
+                        _ => {
+                            eprintln!(" [WARN] Unknown opcode: {:02X}", opcode);
+                            Instruction::NOP
+                        },
                     };
                     return;
                 }
@@ -371,7 +386,10 @@ impl<T: Bus> Cpu6502<T> {
                         0b101 => Instruction::BCS,
                         0b110 => Instruction::BNE,
                         0b111 => Instruction::BEQ,
-                        _ => panic!("Invalid opcode"),
+                        _ => {
+                            eprintln!(" [WARN] Unknown opcode: {:02X}", opcode);
+                            Instruction::NOP
+                        },
                     };
                     return;
                 }
@@ -384,7 +402,10 @@ impl<T: Bus> Cpu6502<T> {
                     0b101 => Instruction::LDY,
                     0b110 => Instruction::CPY,
                     0b111 => Instruction::CPX,
-                    _ => panic!("Invalid opcode"),
+                    _ => {
+                        eprintln!(" [WARN] Unknown opcode: {:02X}", opcode);
+                        Instruction::NOP
+                    },
                 };
                 self.addr_mode = match addr_mode {
                     0b000 => AddressingMode::Imm,
@@ -395,11 +416,18 @@ impl<T: Bus> Cpu6502<T> {
                     0b101 => AddressingMode::ZPX,
                     // skip 0b110
                     0b111 => AddressingMode::AbsX,
-                    _ => panic!("Invalid addressing mode"),
+                    _ => {
+                        eprintln!(" [WARN] Unknown opcode in addr mode resolution: {:02X}", opcode);
+                        AddressingMode::Impl
+                    },
                 }
             }
             0b11 => {}
-            _ => panic!("Invalid instruction"),
+            _ => {
+                eprintln!(" [WARN] Unknown opcode: {:02X}", opcode);
+                self.instr = Instruction::NOP;
+                self.addr_mode = AddressingMode::Impl;
+            }
         }
     }
 
@@ -434,12 +462,11 @@ impl<T: Bus> Cpu6502<T> {
                 bytes_to_addr(ops[2], ops[1])
             }
             AddressingMode::AbsInd => {
-                let addr = bytes_to_addr(ops[2], ops[1]);
+                let addr_lo = bytes_to_addr(ops[2], ops[1]);
+                let addr_hi = bytes_to_addr(ops[2], ops[1].wrapping_add(1));
                 self.adv_pc(2);
-                let hi = self.read_bus(addr + 1);
-                let lo = self.read_bus(addr);
-                // TODO: JMP,AbsInd should get the right # of cycles
-                self.cycles += 1;
+                let hi = self.read_bus(addr_hi);
+                let lo = self.read_bus(addr_lo);
                 bytes_to_addr(hi, lo)
             }
             AddressingMode::AbsX => {
@@ -452,7 +479,7 @@ impl<T: Bus> Cpu6502<T> {
                 addr
             }
             AddressingMode::AbsY => {
-                let addr = bytes_to_addr(ops[2], ops[1]) + u16::from(self.y);
+                let addr = bytes_to_addr(ops[2], ops[1]).wrapping_add(u16::from(self.y));
                 self.adv_pc(2);
                 if (u16::from(self.y) + u16::from(ops[1])) & 0x0100 == 0x0100 {
                     self.cycles += 1; // oops cycle
@@ -480,8 +507,7 @@ impl<T: Bus> Cpu6502<T> {
             AddressingMode::IndY => {
                 self.adv_pc(1);
                 let lo = self.read_bus(u16::from(ops[1]));
-                // wrap cast to make sure Rust doesn't expand either op prematurely
-                let hi = self.read_bus(u16::from(ops[1]) + 1);
+                let hi = self.read_bus(0xFF & (u16::from(ops[1]) + 1));
                 if (u16::from(self.y) + u16::from(lo)) & 0x0100 == 0x0100 {
                     self.cycles += 1; // oops cycle
                 }
@@ -933,7 +959,11 @@ impl<T: Bus> Cpu6502<T> {
 
             //region Storage instruction
             Instruction::STA => {
-                self.write(self.acc)
+                self.write(self.acc);
+                // Cycle count corrections
+                if self.addr_mode == AddressingMode::IndY {
+                    self.cycles += 1;
+                }
             }
             Instruction::STX => {
                 self.write(self.x);
@@ -1066,7 +1096,7 @@ impl<T: Bus> fmt::Display for Cpu6502<T> {
             },
             AddressingMode::IndY => {
                 let ind = bytes_to_addr(
-                    bus.read(u16::from(bytes[1]) + 1),
+                    bus.read(0xFF & (u16::from(bytes[1]) + 1)),
                     bus.read(u16::from(bytes[1]))
                 );
                 format!(

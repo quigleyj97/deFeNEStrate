@@ -33,7 +33,7 @@ fn main() {
 
     eprintln!("deFeNEStrate initialized");
 
-    for _ in 0..5000 {
+    for _ in 0..9000 {
         println!("{}", nes.step_debug());
     }
 }
