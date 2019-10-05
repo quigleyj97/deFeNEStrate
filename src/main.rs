@@ -1,14 +1,31 @@
 #[macro_use]
 extern crate bitflags;
+#[cfg(target_arch = "wasm32")]
+extern crate stdweb;
 
 pub mod databus;
 pub mod devices;
 
 use devices::nes::NesEmulator;
-use std::env::args;
-use std::process;
 
+#[cfg(target_arch = "wasm32")]
 fn main() {
+    use stdweb;
+    stdweb::initialize();
+
+    stdweb::web::alert("Hi WASM!");
+
+    let mut nes = NesEmulator::default();
+
+    for _ in 0..5 {
+        println!("{}", nes.step_debug());
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn main() {
+    use std::env::args;
+    use std::process;
     eprintln!("Initializing...");
 
     let mut nes = NesEmulator::default();

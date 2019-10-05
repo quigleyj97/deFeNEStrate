@@ -1,7 +1,3 @@
-use std::fs::File;
-use std::io::{prelude::*, SeekFrom};
-use std::path::Path;
-
 /// The interface for a NES Cart.
 ///
 /// Cartridges are a complex topic, since they can implement everything from
@@ -53,7 +49,11 @@ impl Cartridge for NesMapper0Cart {
 
 // Ideally we'd have a Cartridge that does this...
 impl NesMapper0Cart {
+    #[cfg(not(target = "wasm32"))]
     pub fn from_file(path: &str) -> std::io::Result<NesMapper0Cart> {
+        use std::fs::File;
+        use std::io::{prelude::*, SeekFrom};
+        use std::path::Path;
         let path = Path::new(&path);
         let mut file = File::open(path).expect("Could not read NESTEST rom");
         file.seek(SeekFrom::Start(16)).unwrap(); // skip header

@@ -8,3 +8,10 @@ edition = "2018"
 
 [dependencies]
 bitflags = "1.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+stdweb = "0.4.19"
+
+[features]
+cli = []
+gui = []
