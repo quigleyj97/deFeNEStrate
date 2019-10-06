@@ -38,8 +38,12 @@ impl Cartridge for NesMapper0Cart {
         // do nothing
     }
 
-    fn read_chr(&self, _addr: u16) -> u8 {
-        0 // unimplemented
+    fn read_chr(&self, addr: u16) -> u8 {
+        if addr > 0x2000 {
+            // open bus
+            return 0;
+        }
+        self.chr_rom[addr as usize]
     }
 
     fn write_chr(&mut self, _addr: u16, _data: u8) {
