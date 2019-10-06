@@ -1,34 +1,46 @@
 #[macro_use]
 extern crate bitflags;
+extern crate quicksilver;
 #[cfg(target_arch = "wasm32")]
+#[macro_use]
 extern crate stdweb;
 
 pub mod databus;
 pub mod devices;
+mod ui;
 
-use devices::nes::NesEmulator;
+use ui::MainWindow;
 
 #[cfg(target_arch = "wasm32")]
 fn main() {
+    use quicksilver::{
+        geom::Vector,
+        lifecycle::{run, Settings},
+    };
     use stdweb;
     stdweb::initialize();
 
-    stdweb::web::alert("Hi WASM!");
-
-    let mut nes = NesEmulator::default();
-
-    for _ in 0..5 {
-        println!("{}", nes.step_debug());
+    stdweb::js! {
+        console.log("Hi WASM!");
     }
+
+    run::<MainWindow>("deFeNEStrate", Vector::new(800, 600), Settings::default());
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
+    use devices::nes::NesEmulator;
+    use quicksilver::{
+        geom::Vector,
+        lifecycle::{run_with, Settings},
+    };
     use std::env::args;
     use std::process;
     eprintln!("Initializing...");
 
-    let mut nes = NesEmulator::default();
+    let mut emu = MainWindow {
+        nes: NesEmulator::default(),
+    };
 
     let args: Vec<String> = args().collect();
 
@@ -42,15 +54,16 @@ fn main() {
             process::exit(1);
         }
         Result::Ok(cart) => {
-            nes.load_cart(Box::new(cart));
+            emu.nes.load_cart(Box::new(cart));
         }
     }
 
-    nes.set_pc(0xC000);
-
     eprintln!("deFeNEStrate initialized");
 
-    for _ in 0..9000 {
-        println!("{}", nes.step_debug());
-    }
+    run_with(
+        "Draw things",
+        Vector::new(800, 600),
+        Settings::default(),
+        || Ok(emu),
+    );
 }
