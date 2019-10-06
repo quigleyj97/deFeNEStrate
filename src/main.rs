@@ -29,41 +29,30 @@ fn main() {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    use devices::nes::NesEmulator;
     use quicksilver::{
         geom::Vector,
-        lifecycle::{run_with, Settings},
+        lifecycle::{run_with, Settings, State},
     };
     use std::env::args;
-    use std::process;
     eprintln!("Initializing...");
 
-    let mut emu = MainWindow {
-        nes: NesEmulator::default(),
-    };
-
-    let args: Vec<String> = args().collect();
-
-    let cart_path = &args[1];
-
-    let cart = devices::cartridge::NesMapper0Cart::from_file(cart_path);
-
-    match cart {
-        Result::Err(e) => {
-            eprintln!("Failed to read cart at {}: {}", cart_path, e);
-            process::exit(1);
-        }
-        Result::Ok(cart) => {
-            emu.nes.load_cart(Box::new(cart));
-        }
-    }
-
-    eprintln!("deFeNEStrate initialized");
-
     run_with(
-        "Draw things",
+        "deFeNEStrate [ nestest.nes ]",
         Vector::new(800, 600),
         Settings::default(),
-        || Ok(emu),
+        || {
+            eprintln!("deFeNEStrate initialized");
+            let mut app = MainWindow::new()?;
+            let args: Vec<String> = args().collect();
+
+            let cart_path = &args[1];
+
+            let cart = devices::cartridge::NesMapper0Cart::from_file(cart_path)?;
+
+            app.nes.load_cart(Box::from(cart));
+            app.nes.set_pc(0xC000);
+            eprintln!("Loaded cart");
+            Ok(app)
+        },
     );
 }

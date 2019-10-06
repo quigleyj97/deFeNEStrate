@@ -4,44 +4,45 @@
 
 use crate::devices::nes::NesEmulator;
 use quicksilver::{
-    geom::{Circle, Line, Rectangle, Transform, Triangle},
-    graphics::{Background::Col, Color},
-    lifecycle::{State, Window},
+    geom::Rectangle,
+    graphics::{
+        Background::{Col, Img},
+        Color, Font, FontStyle,
+    },
+    lifecycle::{Asset, State, Window},
 };
 
 pub struct MainWindow {
     pub nes: NesEmulator,
+    font: Asset<Font>,
 }
 
 impl State for MainWindow {
     fn new() -> quicksilver::Result<MainWindow> {
+        let font = Asset::new(Font::load("DroidSansMono.ttf"));
         Ok(MainWindow {
             nes: NesEmulator::default(),
+            font,
         })
+    }
+
+    fn update(&mut self, _window: &mut Window) -> quicksilver::Result<()> {
+        self.nes.step_emulator();
+        Ok(())
     }
 
     fn draw(&mut self, window: &mut Window) -> quicksilver::Result<()> {
         window.clear(Color::WHITE)?;
-        window.draw(&Rectangle::new((100, 100), (32, 32)), Col(Color::BLUE));
-        window.draw_ex(
-            &Rectangle::new((400, 300), (32, 32)),
-            Col(Color::BLUE),
-            Transform::rotate(45),
-            10,
-        );
-        window.draw(&Circle::new((400, 300), 100), Col(Color::GREEN));
-        window.draw_ex(
-            &Line::new((50, 80), (600, 450)).with_thickness(2.0),
-            Col(Color::RED),
-            Transform::IDENTITY,
-            5,
-        );
-        window.draw_ex(
-            &Triangle::new((500, 50), (450, 100), (650, 150)),
-            Col(Color::RED),
-            Transform::rotate(45) * Transform::scale((0.5, 0.5)),
-            0,
-        );
-        Ok(())
+        // Rendering area
+        window.draw(&Rectangle::new((10, 10), (640, 480)), Col(Color::BLACK));
+        // Debugging
+        let status = self.nes.get_status();
+        self.font.execute(|font| {
+            let style = FontStyle::new(16.0, Color::BLACK);
+            let img = font.render(&status, &style)?;
+            let rect = &img.area();
+            window.draw(&Rectangle::new((0, 500), rect.size), Img(&img));
+            Ok(())
+        })
     }
 }

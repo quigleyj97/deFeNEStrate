@@ -55,3 +55,7 @@ NES work
     - This scan has the highest resolution opcode table I can find
   - [nestest](http://www.qmtpro.com/~nes/misc/nestest.txt)
     - Used as a unit test for verifying cycle-count accuracy and functionality.
+
+#### Assets
+
+ - Droid Sans Mono, licensed under [Apache 2.0](./static/Apache License.txt)

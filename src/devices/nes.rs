@@ -54,6 +54,10 @@ impl NesEmulator {
         let bus = self.busref.borrow_mut();
         bus.read(addr)
     }
+
+    pub fn get_status(&self) -> String {
+        format!("{}", self.cpu)
+    }
     //endregion
 
     pub fn load_cart(&mut self, cart: Box<dyn Cartridge>) {
