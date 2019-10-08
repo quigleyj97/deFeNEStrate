@@ -59,9 +59,9 @@ impl NesEmulator {
         format!("{}", self.cpu)
     }
 
-    pub fn get_chr(&self) -> Box<[u8; 8192]> {
+    pub fn get_chr(&self) -> Box<[u8; 256 * 128 * 3]> {
         let bus = self.busref.borrow();
-        bus.ppu.dump_chr()
+        bus.ppu.dump_pattern_table()
     }
     //endregion
 

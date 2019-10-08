@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/target/debug/defenestrate.exe",
             "args": [
-                "tests/data/nestest.nes"
+                "../tests/data/nestest.nes"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

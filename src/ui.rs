@@ -7,7 +7,7 @@ use quicksilver::{
     geom::Rectangle,
     graphics::{
         Background::{Col, Img},
-        Color, Font, FontStyle,
+        Color, Font, FontStyle, Image, PixelFormat,
     },
     lifecycle::{Asset, State, Window},
 };
@@ -37,6 +37,9 @@ impl State for MainWindow {
         window.draw(&Rectangle::new((10, 10), (640, 480)), Col(Color::BLACK));
         // Debugging
         let status = self.nes.get_status();
+        let img = Image::from_raw(&*self.nes.get_chr(), 128, 256, PixelFormat::RGB)?;
+        let img_rect = &img.area();
+        window.draw(&Rectangle::new((660, 10), img_rect.size), Img(&img));
         self.font.execute(|font| {
             let style = FontStyle::new(16.0, Color::BLACK);
             let img = font.render(&status, &style)?;
