@@ -19,8 +19,8 @@ pub trait Cartridge {
 
 /// The simplest possible sort of cartridge
 pub struct NesMapper0Cart {
-    prg_rom: Box<[u8]>,
-    chr_rom: Box<[u8]>,
+    prg_rom: Vec<u8>,
+    chr_rom: Vec<u8>,
     is_16k: bool,
 }
 
@@ -56,14 +56,18 @@ impl NesMapper0Cart {
     #[cfg(not(target = "wasm32"))]
     pub fn from_file(path: &str) -> std::io::Result<NesMapper0Cart> {
         use std::fs::File;
-        use std::io::{prelude::*, SeekFrom};
+        use std::io::prelude::*;
         use std::path::Path;
         let path = Path::new(&path);
-        let mut file = File::open(path).expect("Could not read NESTEST rom");
-        file.seek(SeekFrom::Start(16)).unwrap(); // skip header
+        let mut file = File::open(path).expect("Could not read rom");
 
-        let mut prg_rom = Box::new([0u8; 16_384]);
-        let mut chr_rom = Box::new([0u8; 8192]);
+        let mut header_bytes = [0u8; 16];
+        file.read_exact(&mut header_bytes)?;
+
+        let header = INesHeader::from_bytes(header_bytes);
+
+        let mut prg_rom = vec![0; 0x4000 * header.prg_size as usize];
+        let mut chr_rom = vec![0; 0x2000 * header.chr_size as usize];
 
         file.read_exact(&mut prg_rom[..])?;
         file.read_exact(&mut chr_rom[..])?;
@@ -71,7 +75,43 @@ impl NesMapper0Cart {
         Result::Ok(NesMapper0Cart {
             prg_rom,
             chr_rom,
-            is_16k: true,
+            is_16k: header.prg_size == 1,
         })
+    }
+}
+
+/// Interface for an iNES header
+/// ...which should go somewhere else...
+#[allow(dead_code)] // make clippy less viscerally unhappy
+struct INesHeader {
+    /// The size of the PRG chunk, in 16k chunks. Will not be 0.
+    prg_size: u8,
+    /// The size of the CHR chunk, in 8k chunks. Will not be 0.
+    chr_size: u8,
+    // TODO: Flag support
+    /// Mapper, mirroring, battery, trainer
+    flags_6: u8,
+    /// Mapper, VS/PlayChoice, NES 2.0 indicator
+    flags_7: u8,
+    /// PRG-RAM size, rarely used.
+    flags_8: u8,
+    /// NTSC/PAL, rarely used
+    flags_9: u8,
+    /// NTSC/PAL (again?!?), PRG-RAM (again!?!), also rarely used
+    flags_10: u8,
+}
+
+impl INesHeader {
+    fn from_bytes(bytes: [u8; 16]) -> INesHeader {
+        // First 4 bytes are the "NES" magic string, last 5 are unused.
+        INesHeader {
+            prg_size: if bytes[4] == 0 { 1 } else { bytes[4] },
+            chr_size: if bytes[5] == 0 { 1 } else { bytes[5] },
+            flags_6: bytes[6],
+            flags_7: bytes[7],
+            flags_8: bytes[8],
+            flags_9: bytes[9],
+            flags_10: bytes[10],
+        }
     }
 }
