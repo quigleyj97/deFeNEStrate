@@ -4,11 +4,12 @@ use std::rc::Rc;
 
 pub struct Ppu2C02 {
     cart: Rc<RefCell<Option<Box<dyn Cartridge>>>>,
-    nametable: [u8; 1024],
-    palette: [u8; 32],
+    nametable: [u8; 0x800],
+    palette: [u8; 0x20],
 }
 
 impl Ppu2C02 {
+    //region Debug aids
     pub fn dump_chr(&self) -> Box<[u8; 8192]> {
         let mut buf = Box::new([0u8; 8192]);
         let cart_ref = self.cart.borrow();
@@ -70,13 +71,71 @@ impl Ppu2C02 {
             Option::Some(cart) => cart.write_chr(addr, data),
         }
     }
+    //endregion
+
+    pub fn read(&self, addr: u16) -> u8 {
+        if addr < 0x2000 {
+            // read from cart
+            let cart_ref = self.cart.borrow();
+            return match (*cart_ref).as_ref() {
+                Option::None => 0, // TODO: Open bus
+                Option::Some(cart) => cart.read_chr(addr),
+            };
+        } else if addr < 0x3F00 {
+            // Mirroring occurs over 0x3000..0x3EFF -> 0x2000..0x2EFF
+            // Functionally this means that $3EFF = $(0x3EFF & !0x1000) = $2EFF
+            let addr = ((addr & !0x1000) - 0x2000) % 0x0800;
+            // TODO: Mirroring
+            return self.nametable[addr as usize];
+        } else if addr < 0x4000 {
+            let addr = addr & 0x1F;
+            let addr = match addr {
+                0x10 => 0x00,
+                0x14 => 0x04,
+                0x18 => 0x08,
+                0x1C => 0x0C,
+                _ => addr,
+            };
+            return self.palette[addr as usize];
+        }
+
+        // TODO: Open bus
+        0
+    }
+
+    pub fn write(&mut self, addr: u16, data: u8) {
+        if addr < 0x2000 {
+            // read from cart
+            let mut cart_ref = self.cart.borrow_mut();
+            match &mut *cart_ref {
+                Option::None => {} // TODO: Open bus
+                Option::Some(cart) => cart.write_chr(addr, data),
+            };
+        } else if addr < 0x3F00 {
+            // Mirroring occurs over 0x3000..0x3EFF -> 0x2000..0x2EFF
+            // Functionally this means that $3EFF = $(0x3EFF & !0x1000) = $2EFF
+            let addr = ((addr & !0x1000) - 0x2000) % 0x0800;
+            // TODO: Mirroring
+            self.nametable[addr as usize] = data;
+        } else if addr < 0x4000 {
+            let addr = addr & 0x1F;
+            let addr = match addr {
+                0x10 => 0x00,
+                0x14 => 0x04,
+                0x18 => 0x08,
+                0x1C => 0x0C,
+                _ => addr,
+            };
+            self.palette[addr as usize] = data;
+        }
+    }
 
     // Statics
 
     pub fn new(cart: Rc<RefCell<Option<Box<dyn Cartridge>>>>) -> Ppu2C02 {
         Ppu2C02 {
             cart,
-            nametable: [0u8; 1024],
+            nametable: [0u8; 2048],
             palette: [0u8; 32],
         }
     }
