@@ -140,3 +140,50 @@ impl Ppu2C02 {
         }
     }
 }
+
+/// Bitmasks for fields of the PPU control register ($PPUCTRL)
+pub mod ppu_ctrl_flags {
+    /// Select which nametable to use. 0 = $2000, 1 = $2400, 2 = $2800, 3 = $2C00
+    pub const NAMETABLE_BASE_SELECT: u8 = 0x03;
+    /// Select the increment mode for writes to $PPUDATA. 0 = add 1, 1 = add 32
+    pub const VRAM_INCREMENT_SELECT: u8 = 0x04;
+    /// Select the base address for sprite tiles. 0 = $0000, 1 = $1000
+    pub const SPRITE_TILE_SELECT: u8 = 0x08;
+    /// Select the base address for background tiles. 0 = $0000, 1 = $1000
+    pub const BG_TILE_SELECT: u8 = 0x10;
+    /// If 1, use 8x16 sprites instead of the usual 8x8
+    pub const SPRITE_MODE_SELECT: u8 = 0x20;
+    /// If 1, use the PPU's EXT pins to source the background color
+    /// Note: This is not used in the NES since the EXT pins of the 2C02 are
+    /// grounded (and thus enabling this bit will cause a ground fault on real
+    /// hardware). Nesdev referrs to this flag as the "PPU master/slave select",
+    /// Presumably this comes from the PPU's internal documentation.
+    pub const PPU_BG_COLOR_SELECT: u8 = 0x40;
+    /// If 1, enable NMI generation on VBlank
+    pub const VBLANK_NMI_ENABLE: u8 = 0x80;
+}
+
+/// Bitmasks for the PPU mask register ($PPUMASK)
+pub mod ppu_mask_flags {
+    /// If true, use the leftmost pallete colors only
+    pub const USE_GRAYSCALE: u8 = 0x01;
+    /// If false, don't render the background in the leftmost 8 columns
+    pub const BG_LEFT_ENABLE: u8 = 0x02;
+    /// If false, don't render sprites in the leftmost 8 columns
+    pub const SPRITE_LEFT_ENABLE: u8 = 0x04;
+    /// If false, don't render the background
+    pub const BG_ENABLE: u8 = 0x08;
+    /// If false, don't render sprites
+    pub const SPRITE_ENABLE: u8 = 0x10;
+    pub const COLOR_EMPHASIS_RED: u8 = 0x20;
+    pub const COLOR_EMPHASIS_GREEN: u8 = 0x40;
+    pub const COLOR_EMPHASIS_BLUE: u8 = 0x80;
+}
+
+/// Bitmasks for the PPU status register ($PPUSTATUS)
+pub mod ppu_status_flags {
+    pub const STATUS_IGNORED: u8 = 0x1F;
+    pub const SPRITE_OVERFLOW: u8 = 0x20;
+    pub const SPRITE_0_HIT: u8 = 0x40;
+    pub const VBLANK: u8 = 0x80;
+}
