@@ -17,6 +17,8 @@ pub struct Ppu2C02 {
     mask: u8,
     /// The read-only status register
     status: u8,
+
+    //#region Emulation helpers
     /// The last value on the PPU bus.
     ///
     /// The PPU's bus to the CPU has such long traces that electrically, they
@@ -26,6 +28,29 @@ pub struct Ppu2C02 {
     /// It should be said that this behavior is unreliable, and no reasonable
     /// game would ever depend on this functionality.
     last_bus_value: u8,
+    /// Whether the PPUADDR is filling the hi (false) or the lo byte (true).
+    ///
+    /// # Note
+    ///
+    /// Oddly, PPUADDR seems to be _big_ endian even though the rest of the NES
+    /// is little endian. I'm not sure why this is.
+    is_ppuaddr_lo: bool,
+    /// The address loaded into PPUADDR
+    ppuaddr: u16,
+    /// Buffer containing the value of the address given in PPUADDR.
+    ///
+    /// # Note
+    ///
+    /// Reads from regions of PPU memory (excluding the palette memory) are
+    /// delayed by one clock cycle, as the PPU first _recieves_ the address,
+    /// then puts that address on it's internal bus. On the _next_ cycle, it
+    /// then _writes_ that value to a buffer on the CPU bus. The effect of this
+    /// is that reads from the PPU take _two_ cycles instead of one.
+    ///
+    /// For palette memory, however, there happens to be entirely combinatorial
+    /// logic to plumb this read; meaning that no clock ticking has to occur.
+    ppudata_buffer: u8,
+    //#endregion
 }
 
 impl Ppu2C02 {
@@ -37,12 +62,30 @@ impl Ppu2C02 {
             ppu_port::PPUSTATUS => {
                 let status = self.status | (ppu_status_flags::STATUS_IGNORED & self.last_bus_value);
                 self.status &= !(ppu_status_flags::VBLANK & ppu_status_flags::STATUS_IGNORED);
-                // TODO: Clear PPUADDR/PPUSCROLL register
+                self.is_ppuaddr_lo = false;
                 status
             }
             ppu_port::OAMDATA => {
                 eprintln!(" [WARN] $OAMDATA not implemented");
                 self.last_bus_value
+            }
+            ppu_port::PPUDATA => {
+                if (addr & 0x3FFF) > 0x3F00 {
+                    // This is palette memory, don't buffer...
+                    //
+                    // ......ish...
+                    //
+                    // According to Nesdev, the PPU actually _will_ populate the
+                    // buffer with whatever's in the nametable, mirrored though
+                    // 0x3F00. So let's do that after setting data, just in case
+                    // anything needs that...
+                    let data = self.read(self.ppuaddr);
+                    self.ppudata_buffer = self.read(self.ppuaddr & !0x1000);
+                    return data;
+                }
+                let data = self.ppudata_buffer;
+                self.ppudata_buffer = self.read(self.ppuaddr);
+                return data;
             }
             _ => self.last_bus_value,
         };
@@ -69,10 +112,21 @@ impl Ppu2C02 {
                 eprintln!(" [WARN] $PPUSCROLL not implemented");
             }
             ppu_port::PPUADDR => {
-                eprintln!(" [WARN] $PPUADDR not implemented");
+                if self.is_ppuaddr_lo {
+                    self.is_ppuaddr_lo = false;
+                    self.ppuaddr |= u16::from(data);
+                } else {
+                    self.is_ppuaddr_lo = true;
+                    self.ppuaddr = u16::from(data) << 8;
+                }
             }
             ppu_port::PPUDATA => {
-                eprintln!(" [WARN] $PPUDATA not implemented");
+                self.write(self.ppuaddr, data);
+                if (self.control & ppu_ctrl_flags::VRAM_INCREMENT_SELECT) > 0 {
+                    self.ppuaddr += 32;
+                } else {
+                    self.ppuaddr += 1;
+                }
             }
             _ => {}
         };
@@ -210,6 +264,9 @@ impl Ppu2C02 {
             mask: 0,
             status: 0,
             last_bus_value: 0,
+            is_ppuaddr_lo: false,
+            ppuaddr: 0,
+            ppudata_buffer: 0,
         }
     }
 }
@@ -282,3 +339,28 @@ pub mod ppu_port {
     /// Address for setting up OAM
     pub const OAMDMA: u16 = 0x4014;
 }
+
+/// Palette table taken from NesDev
+///
+/// To index, multiply the color index by 3 and take the next 3 values in memory
+/// as an (R,G,B) 8-byte triplet
+#[rustfmt::skip]
+pub const PALLETE_TABLE: [u8; 0x40 * 3] = [
+    //          0*              1*              2*              3*
+    /* *0 */    101, 101, 101,  174, 174, 174,  254, 254, 255,  254, 254, 255, // White
+    /* *1 */    0, 45, 105,     15,  99,  179,  93,  179, 255,  188, 223, 255, // Blue
+    /* *2 */    19, 31, 127,    64, 81, 208,    143, 161, 255,  209, 216, 255,
+    /* *3 */    60, 19, 124,    120, 65, 204,   200, 144, 255,  232, 209, 255,
+    /* *4 */    96, 11, 98,     167, 54, 169,   247, 133, 250,  251, 205, 253,
+    /* *5 */    115, 10, 55,    192, 52, 112,   255, 131, 192,  255, 204, 229,
+    /* *6 */    113, 15, 7,     189, 60, 48,    255, 139, 127,  255, 207, 202, // Red
+    /* *7 */    90, 26, 0,      159, 74, 0,     239, 154, 73,   248, 213, 180,
+    /* *8 */    52, 40, 0,      109, 92, 0,     189, 172, 44,   228, 220, 168,
+    /* *9 */    11, 52, 0,      54, 109, 0,     133, 188, 47,   204, 227, 169,
+    /* *A */    0, 60, 0,       7, 119, 4,      85, 199, 83,    185, 232, 184, // Green
+    /* *B */    0, 61, 16,      0, 121, 61,     60, 201, 140,   174, 232, 208,
+    /* *C */    0, 56, 64,      0, 114, 125,    62, 194, 205,   175, 229, 234,
+    /* *D */    0, 0, 0,        0, 0, 0,        78, 78, 78,     182, 182, 182, // White
+    /* *E */    0, 0, 0,        0, 0, 0,        0, 0, 0,        0, 0, 0,       // Black
+    /* *F */    0, 0, 0,        0, 0, 0,        0, 0, 0,        0, 0, 0
+];
