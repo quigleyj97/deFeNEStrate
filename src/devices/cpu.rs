@@ -175,7 +175,7 @@ impl<T: Bus> Cpu6502<T> {
     }
 
     fn load_opcode(&mut self) {
-        let bus = self.bus.borrow();
+        let mut bus = self.bus.borrow_mut();
         let opcode = bus.read(self.pc);
         let operand1 = bus.read((Wrapping(self.pc) + Wrapping(1)).0);
         let operand2 = bus.read((Wrapping(self.pc) + Wrapping(2)).0);
@@ -545,7 +545,7 @@ impl<T: Bus> Cpu6502<T> {
     /// Read a byte from the bus, adding one to the cycle time
     fn read_bus(&mut self, addr: u16) -> u8 {
         self.cycles += 1;
-        let bus = self.bus.borrow();
+        let mut bus = self.bus.borrow_mut();
         bus.read(addr)
     }
 
@@ -1110,7 +1110,7 @@ impl<T: Bus> fmt::Display for Cpu6502<T> {
 
         let operand_bytes = bytes_to_addr(bytes[2], bytes[1]);
         let bus = self.bus.borrow();
-        let data = bus.read(self.addr);
+        let data = bus.read_debug(self.addr);
         let addr = self.addr;
         let is_jmp = self.instr == Instruction::JMP || self.instr == Instruction::JSR;
         let instr = match self.addr_mode {
@@ -1154,8 +1154,8 @@ impl<T: Bus> fmt::Display for Cpu6502<T> {
             }
             AddressingMode::IndY => {
                 let ind = bytes_to_addr(
-                    bus.read(0xFF & (u16::from(bytes[1]) + 1)),
-                    bus.read(u16::from(bytes[1])),
+                    bus.read_debug(0xFF & (u16::from(bytes[1]) + 1)),
+                    bus.read_debug(u16::from(bytes[1])),
                 );
                 format!(
                     "{:3?} (${:02X}),Y = {:04X} @ {:04X} = {:02X}",

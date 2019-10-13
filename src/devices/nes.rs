@@ -51,7 +51,7 @@ impl NesEmulator {
     /// This is for test automation to read specific addresses and check for
     /// errors in some comprehensive test ROMs
     pub fn read_bus(&mut self, addr: u16) -> u8 {
-        let bus = self.busref.borrow_mut();
+        let mut bus = self.busref.borrow_mut();
         bus.read(addr)
     }
 
@@ -93,10 +93,12 @@ struct NesBus {
 }
 
 impl Bus for NesBus {
-    fn read(&self, addr: u16) -> u8 {
+    fn read(&mut self, addr: u16) -> u8 {
         if addr < 0x2000 {
             // AND with 0x07FF to implement the RAM mirrors
             return self.ram[(addr & 0x07FF) as usize];
+        } else if addr < 0x2008 {
+            return self.ppu.read_ppu(addr);
         } else if addr > 0x401F {
             // Cart
             return match &*self.cart.borrow() {
@@ -107,6 +109,25 @@ impl Bus for NesBus {
         // Open bus
         // Technically this should be the last read byte, randomly decayed. But
         // I'm lazy, and hope that nothing reasonable actually relies on that...
+        0
+    }
+
+    fn read_debug(&self, addr: u16) -> u8 {
+        if addr < 0x2000 {
+            // AND with 0x07FF to implement the RAM mirrors
+            return self.ram[(addr & 0x07FF) as usize];
+        } else if addr < 0x2008 {
+            // The PPU registers often require some mutability in order to work
+            eprintln!(" [INFO] Cannot read_debug() from PPU registers");
+            return 0;
+        } else if addr > 0x401F {
+            // Cart
+            return match &*self.cart.borrow() {
+                Option::None => 0,
+                Option::Some(cart) => cart.read_prg(addr),
+            };
+        }
+        // Open bus
         0
     }
 

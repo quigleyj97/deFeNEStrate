@@ -4,11 +4,80 @@ use std::rc::Rc;
 
 pub struct Ppu2C02 {
     cart: Rc<RefCell<Option<Box<dyn Cartridge>>>>,
+    /// The PPU nametables
+    ///
+    /// TODO: This should live inside the Cartridge, as the mapper implementation
+    /// has a high degree of control over this region of memory.
     nametable: [u8; 0x800],
+    /// The internal palette memory
     palette: [u8; 0x20],
+    /// The write-only control register
+    control: u8,
+    /// The mask register used for controlling various aspects of rendering
+    mask: u8,
+    /// The read-only status register
+    status: u8,
+    /// The last value on the PPU bus.
+    ///
+    /// The PPU's bus to the CPU has such long traces that electrically, they
+    /// act as a latch, retaining the value of last value placed on the bus for
+    /// up to a full frame.
+    ///
+    /// It should be said that this behavior is unreliable, and no reasonable
+    /// game would ever depend on this functionality.
+    last_bus_value: u8,
 }
 
 impl Ppu2C02 {
+    /// Read data from a control port on the PPU.
+    ///
+    /// Addresses should be given in CPU Bus addresses (eg, $PPUCTRL)
+    pub fn read_ppu(&mut self, addr: u16) -> u8 {
+        let val = match addr {
+            ppu_port::PPUSTATUS => {
+                let status = self.status | (ppu_status_flags::STATUS_IGNORED & self.last_bus_value);
+                self.status &= !(ppu_status_flags::VBLANK & ppu_status_flags::STATUS_IGNORED);
+                // TODO: Clear PPUADDR/PPUSCROLL register
+                status
+            }
+            ppu_port::OAMDATA => {
+                eprintln!(" [WARN] $OAMDATA not implemented");
+                self.last_bus_value
+            }
+            _ => self.last_bus_value,
+        };
+        self.last_bus_value = val;
+        val
+    }
+
+    /// Write data to a control port on the PPU
+    pub fn write_ppu(&mut self, addr: u16, data: u8) {
+        match addr {
+            // TODO: pre-boot cycle check
+            // TODO: simulate immediate NMI hardware bug
+            // TODO: Bit 0 race condition
+            // TODO: Complain loudly when BG_COLOR_SELECT is set
+            ppu_port::PPUCTRL => self.control = data,
+            ppu_port::PPUMASK => self.mask = data,
+            ppu_port::OAMADDR => {
+                eprintln!(" [WARN] $OAMADDR not implemented");
+            }
+            ppu_port::OAMDATA => {
+                eprintln!(" [WARN] $OAMDATA not implemented");
+            }
+            ppu_port::PPUSCROLL => {
+                eprintln!(" [WARN] $PPUSCROLL not implemented");
+            }
+            ppu_port::PPUADDR => {
+                eprintln!(" [WARN] $PPUADDR not implemented");
+            }
+            ppu_port::PPUDATA => {
+                eprintln!(" [WARN] $PPUDATA not implemented");
+            }
+            _ => {}
+        };
+    }
+
     //region Debug aids
     pub fn dump_chr(&self) -> Box<[u8; 8192]> {
         let mut buf = Box::new([0u8; 8192]);
@@ -137,6 +206,10 @@ impl Ppu2C02 {
             cart,
             nametable: [0u8; 2048],
             palette: [0u8; 32],
+            control: 0,
+            mask: 0,
+            status: 0,
+            last_bus_value: 0,
         }
     }
 }
@@ -186,4 +259,26 @@ pub mod ppu_status_flags {
     pub const SPRITE_OVERFLOW: u8 = 0x20;
     pub const SPRITE_0_HIT: u8 = 0x40;
     pub const VBLANK: u8 = 0x80;
+}
+
+/// Constants for the CPU addresses of PPU control ports
+pub mod ppu_port {
+    /// Write-only PPU control register
+    pub const PPUCTRL: u16 = 0x2000;
+    /// PPU mask register
+    pub const PPUMASK: u16 = 0x2001;
+    /// Read-only PPU status register
+    pub const PPUSTATUS: u16 = 0x2002;
+    /// Latch to set the address for OAMDATA into the PPU's OAM memory
+    pub const OAMADDR: u16 = 0x2003;
+    /// The value to be written into OAM
+    pub const OAMDATA: u16 = 0x2004;
+    /// Write-twice latch for setting the scroll position
+    pub const PPUSCROLL: u16 = 0x2005;
+    /// Write-twice latch for setting the address for the PPUDATA latch
+    pub const PPUADDR: u16 = 0x2006;
+    /// Read-write port for interfacing with the PPU bus
+    pub const PPUDATA: u16 = 0x2007;
+    /// Address for setting up OAM
+    pub const OAMDMA: u16 = 0x4014;
 }
