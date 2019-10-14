@@ -60,8 +60,10 @@ impl Ppu2C02 {
     pub fn read_ppu(&mut self, addr: u16) -> u8 {
         let val = match addr {
             ppu_port::PPUSTATUS => {
+                // HACK
+                self.status |= ppu_status_flags::VBLANK;
                 let status = self.status | (ppu_status_flags::STATUS_IGNORED & self.last_bus_value);
-                self.status &= !(ppu_status_flags::VBLANK & ppu_status_flags::STATUS_IGNORED);
+                self.status &= !(ppu_status_flags::VBLANK | ppu_status_flags::STATUS_IGNORED);
                 self.is_ppuaddr_lo = false;
                 status
             }
@@ -70,7 +72,7 @@ impl Ppu2C02 {
                 self.last_bus_value
             }
             ppu_port::PPUDATA => {
-                if (addr & 0x3FFF) > 0x3F00 {
+                if addr > 0x3F00 {
                     // This is palette memory, don't buffer...
                     //
                     // ......ish...
@@ -80,11 +82,19 @@ impl Ppu2C02 {
                     // 0x3F00. So let's do that after setting data, just in case
                     // anything needs that...
                     let data = self.read(self.ppuaddr);
+                    eprintln!(
+                        "read PPUDATA = {:02X}, next = {:02X}",
+                        data, self.ppudata_buffer
+                    );
                     self.ppudata_buffer = self.read(self.ppuaddr & !0x1000);
                     return data;
                 }
                 let data = self.ppudata_buffer;
                 self.ppudata_buffer = self.read(self.ppuaddr);
+                eprintln!(
+                    "read PPUDATA = {:02X}, next = {:02X}",
+                    data, self.ppudata_buffer
+                );
                 return data;
             }
             _ => self.last_bus_value,
@@ -145,7 +155,7 @@ impl Ppu2C02 {
         buf
     }
 
-    pub fn dump_pattern_table(&self) -> Box<[u8; 256 * 128 * 3]> {
+    pub fn dump_pattern_table(&self, use_pallete: bool) -> Box<[u8; 256 * 128 * 3]> {
         let mut buf = Box::new([0u8; 256 * 128 * 3]);
 
         let cart_ref = self.cart.borrow();
@@ -164,24 +174,59 @@ impl Ppu2C02 {
                 // Now to pull the column, we shift right by c mod 8.
                 let offset = 7 - (c % 8);
                 let color = ((1 & (hi >> offset)) << 1) | (1 & (lo >> offset));
-                // This algorithm isn't true color, but it's
-                // not really possible to be accurate anyway since CHR tiles
-                // have no explicit color (that is defined by the pallete
-                // pairing in the nametable, which is a separate step and allows
-                // CHR tiles to be reused)
-                let color = match color {
-                    0b00 => 0x00,                       // black
-                    0b01 => 0x7C,                       // dark gray
-                    0b10 => 0xBC,                       // light gray
-                    0b11 => 0xF8,                       // aaalllllmooosst white,
-                    _ => panic!("Invalid color index"), // I screwed up
-                };
-                buf[(u32::from(r * 128) * 3 + u32::from(c) * 3) as usize] = color;
-                buf[(u32::from(r * 128) * 3 + u32::from(c) * 3 + 1) as usize] = color;
-                buf[(u32::from(r * 128) * 3 + u32::from(c) * 3 + 2) as usize] = color;
+                //#region Grayscale colors
+                if !use_pallete {
+                    // This algorithm isn't true color, but it's
+                    // not really possible to be accurate anyway since CHR tiles
+                    // have no explicit color (that is defined by the pallete
+                    // pairing in the nametable, which is a separate step and allows
+                    // CHR tiles to be reused)
+                    let color = match color {
+                        0b00 => 0x00,                       // black
+                        0b01 => 0x7C,                       // dark gray
+                        0b10 => 0xBC,                       // light gray
+                        0b11 => 0xF8,                       // aaalllllmooosst white,
+                        _ => panic!("Invalid color index"), // I screwed up
+                    };
+                    buf[(u32::from(r * 128) * 3 + u32::from(c) * 3) as usize] = color;
+                    buf[(u32::from(r * 128) * 3 + u32::from(c) * 3 + 1) as usize] = color;
+                    buf[(u32::from(r * 128) * 3 + u32::from(c) * 3 + 2) as usize] = color;
+                }
+                //#endregion
+                //#region Palette 0 colors
+                else {
+                    let color = self.read(0x3F00 | u16::from(color));
+                    let red = PALLETE_TABLE[usize::from(color) * 3];
+                    let green = PALLETE_TABLE[usize::from(color) * 3 + 1];
+                    let blue = PALLETE_TABLE[usize::from(color) * 3 + 2];
+                    buf[(u32::from(r * 128) * 3 + u32::from(c) * 3) as usize] = red;
+                    buf[(u32::from(r * 128) * 3 + u32::from(c) * 3 + 1) as usize] = green;
+                    buf[(u32::from(r * 128) * 3 + u32::from(c) * 3 + 2) as usize] = blue;
+                }
+                //#endregion
             }
         }
 
+        buf
+    }
+
+    pub fn dump_palettes(&self) -> [u8; 128 * 2 * 3] {
+        let mut buf = [0u8; 128 * 2 * 3];
+        for c in 0..32 {
+            let color = self.read(0x3F00 | c);
+            let red = PALLETE_TABLE[usize::from(color) * 3];
+            let green = PALLETE_TABLE[usize::from(color) * 3 + 1];
+            let blue = PALLETE_TABLE[usize::from(color) * 3 + 2];
+            for r in 0..4 {
+                let idx = (c * 4 + r) as usize;
+                buf[idx * 3] = red;
+                buf[idx * 3 + 1] = green;
+                buf[idx * 3 + 2] = blue;
+                buf[(idx + 128) * 3] = red;
+                buf[(idx + 128) * 3 + 1] = green;
+                buf[(idx + 128) * 3 + 2] = blue;
+            }
+        }
         buf
     }
 
