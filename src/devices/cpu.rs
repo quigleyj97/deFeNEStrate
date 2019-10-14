@@ -146,7 +146,9 @@ impl<T: Bus> Cpu6502<T> {
     pub fn reset(&mut self) {
         self.stack -= 3;
         self.status |= Status::IRQ_DISABLE;
-        self.pc = 0xFFFC;
+        let lo = self.read_bus(0xFFFC);
+        let hi = self.read_bus(0xFFFD);
+        self.pc = bytes_to_addr(hi, lo);
     }
 
     pub fn set_flag(&mut self, flag: Status) {
@@ -525,7 +527,10 @@ impl<T: Bus> Cpu6502<T> {
             }
             AddressingMode::Rel => {
                 self.adv_pc(1);
-                self.pc + u16::from(ops[1])
+                let bytes = self.pc.to_le_bytes();
+                let lo = bytes[0].wrapping_add(ops[1]);
+                let hi = bytes[1];
+                bytes_to_addr(hi, lo)
             }
             AddressingMode::ZP => {
                 self.adv_pc(1);
@@ -770,8 +775,8 @@ impl<T: Bus> Cpu6502<T> {
                 self.set_flag(Status::UNUSED);
                 let status = self.status.bits();
                 self.push_stack(status);
-                let addr_lo = self.read_bus(0xFFFE);
-                let addr_hi = self.read_bus(0xFFFF);
+                let addr_hi = self.read_bus(0xFFFE);
+                let addr_lo = self.read_bus(0xFFFF);
                 self.pc = bytes_to_addr(addr_lo, addr_hi);
             }
 
