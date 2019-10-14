@@ -68,6 +68,8 @@ impl NesEmulator {
     pub fn load_cart(&mut self, cart: Box<dyn Cartridge>) {
         let bus = self.busref.borrow_mut();
         bus.cart.replace(Option::Some(cart));
+        drop(bus);
+        self.cpu.reset();
     }
 }
 

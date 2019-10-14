@@ -35,22 +35,21 @@ fn main() {
     };
     use std::env::args;
     eprintln!("Initializing...");
+    let args: Vec<String> = args().collect();
+
+    let cart_path = &args[1];
 
     run_with(
-        "deFeNEStrate [ nestest.nes ]",
+        &format!("deFeNEStrate [ {} ]", cart_path),
         Vector::new(800, 600),
         Settings::default(),
         || {
             eprintln!("deFeNEStrate initialized");
             let mut app = MainWindow::new()?;
-            let args: Vec<String> = args().collect();
-
-            let cart_path = &args[1];
 
             let cart = devices::cartridge::NesMapper0Cart::from_file(cart_path)?;
 
             app.nes.load_cart(Box::from(cart));
-            app.nes.set_pc(0xC000);
             eprintln!("Loaded cart");
             Ok(app)
         },
