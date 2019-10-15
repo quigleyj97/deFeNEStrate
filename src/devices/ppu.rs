@@ -50,21 +50,110 @@ pub struct Ppu2C02 {
     /// For palette memory, however, there happens to be entirely combinatorial
     /// logic to plumb this read; meaning that no clock ticking has to occur.
     ppudata_buffer: u8,
+    /// The pixel currently being output by the PPU.
+    pixel_cycle: i16,
+    /// The scanline currently being rendered.
+    scanline: i16,
+    /// Whether the PPU has completed a frame
+    frame_ready: bool,
+    /// Whether a VBlank interrupt has occured
+    vblank_nmi_ready: bool,
+    /// The internal framebuffer containing the rendered image, in u8 RGB
+    frame_data: Box<[u8; 240 * 256 * 3]>,
     //#endregion
 }
 
 impl Ppu2C02 {
+    //#region Statics
+    pub fn new(cart: Rc<RefCell<Option<Box<dyn Cartridge>>>>) -> Ppu2C02 {
+        Ppu2C02 {
+            cart,
+            nametable: [0u8; 2048],
+            palette: [0u8; 32],
+            control: 0,
+            mask: 0,
+            // cf NesDev PPU powerup state
+            status: 0xA0,
+            last_bus_value: 0,
+            is_ppuaddr_lo: false,
+            ppuaddr: 0,
+            ppudata_buffer: 0,
+            pixel_cycle: 0,
+            scanline: 0,
+            frame_ready: true,
+            vblank_nmi_ready: false,
+            frame_data: Box::new([0u8; 240 * 256 * 3]),
+        }
+    }
+    //#endregion
+
+    /// Clock the PPU, rendering to the internal framebuffer and modifying state
+    ///
+    /// TODO: Cycle count timing for the PPU memory operations
+    pub fn clock(&mut self) {
+        // Render a checkerboard pattern for now
+        if self.scanline > -1 && self.scanline < 240 && self.pixel_cycle < 256 {
+            let idx = (i32::from(self.scanline) * 256 + i32::from(self.pixel_cycle)) as usize;
+            let x = (self.pixel_cycle % 20) >= 10;
+            let y = (self.scanline % 20) >= 10;
+            let color = if x == y { 0 } else { 255 };
+            for offset in 0..3 {
+                self.frame_data[idx * 3 + offset] = color;
+            }
+        }
+        let nmi_enabled = self.control & ppu_ctrl_flags::VBLANK_NMI_ENABLE > 0;
+        if self.scanline == 241 && self.pixel_cycle == 0 {
+            self.vblank_nmi_ready = nmi_enabled;
+            self.status |= ppu_status_flags::VBLANK;
+        } else if self.scanline == 262 && self.pixel_cycle == 1 {
+            self.vblank_nmi_ready = false;
+            self.status &= !(ppu_status_flags::VBLANK | ppu_status_flags::STATUS_IGNORED);
+        }
+
+        self.pixel_cycle += 1;
+
+        if self.pixel_cycle > 340 {
+            self.pixel_cycle = 0;
+            self.scanline += 1;
+        }
+
+        self.frame_ready = false;
+
+        if self.scanline > 260 {
+            // The "-1" scanline is special, and rendering should handle it differently
+            self.scanline = -1;
+            self.frame_ready = true;
+        }
+    }
+
+    /// Whether a VBlank NMI has occured. This should be plumbed to the CPU.
+    pub fn is_vblank(&self) -> bool {
+        self.vblank_nmi_ready
+    }
+
+    /// Whether the PPU has completely rendered a frame.
+    pub fn is_frame_ready(&self) -> bool {
+        self.frame_ready
+    }
+
+    /// Retrieve a copy of the current frame.
+    pub fn get_buffer(&mut self) -> Box<[u8; 240 * 256 * 3]> {
+        let mut new_frame = Box::new([0u8; 240 * 256 * 3]);
+        new_frame.copy_from_slice(&self.frame_data[..self.frame_data.len()]);
+        self.frame_data = Box::new([0u8; 240 * 256 * 3]);
+        new_frame
+    }
+
     /// Read data from a control port on the PPU.
     ///
     /// Addresses should be given in CPU Bus addresses (eg, $PPUCTRL)
     pub fn read_ppu(&mut self, addr: u16) -> u8 {
         let val = match addr {
             ppu_port::PPUSTATUS => {
-                // HACK
-                self.status |= ppu_status_flags::VBLANK;
                 let status = self.status | (ppu_status_flags::STATUS_IGNORED & self.last_bus_value);
                 self.status &= !(ppu_status_flags::VBLANK | ppu_status_flags::STATUS_IGNORED);
                 self.is_ppuaddr_lo = false;
+                self.vblank_nmi_ready = false;
                 status
             }
             ppu_port::OAMDATA => {
@@ -295,23 +384,6 @@ impl Ppu2C02 {
                 _ => addr,
             };
             self.palette[addr as usize] = data;
-        }
-    }
-
-    // Statics
-
-    pub fn new(cart: Rc<RefCell<Option<Box<dyn Cartridge>>>>) -> Ppu2C02 {
-        Ppu2C02 {
-            cart,
-            nametable: [0u8; 2048],
-            palette: [0u8; 32],
-            control: 0,
-            mask: 0,
-            status: 0,
-            last_bus_value: 0,
-            is_ppuaddr_lo: false,
-            ppuaddr: 0,
-            ppudata_buffer: 0,
         }
     }
 }

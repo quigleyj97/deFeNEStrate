@@ -14,9 +14,46 @@ use crate::databus::Bus;
 pub struct NesEmulator {
     cpu: Cpu6502<NesBus>,
     busref: Rc<RefCell<NesBus>>,
+    /// The total number of cycles that have been executed.
+    cycles: u16,
+    is_cpu_idle: bool,
+    is_frame_ready: bool,
 }
 
 impl NesEmulator {
+    /// Run the emulator for one whole frame, and return a reference to that frame data
+    pub fn run_frame(&mut self) -> Box<[u8; 240 * 256 * 3]> {
+        loop {
+            self.tick();
+            if self.is_frame_ready {
+                break;
+            }
+        }
+        let mut bus = self.busref.borrow_mut();
+        bus.ppu.get_buffer()
+    }
+
+    pub fn tick(&mut self) {
+        self.cycles += 1;
+        // u16 max happens to be divisible by 3
+        if self.cycles == u16::max_value() {
+            self.cycles = 0;
+        }
+        let mut bus = self.busref.borrow_mut();
+        bus.ppu.clock();
+        self.is_frame_ready = bus.ppu.is_frame_ready();
+        if bus.ppu.is_vblank() {
+            self.cpu.trigger_nmi();
+        }
+        drop(bus);
+        if self.cycles % 3 == 0 {
+            if self.is_cpu_idle {
+                self.cpu.exec();
+            }
+            self.is_cpu_idle = self.cpu.tick();
+        }
+    }
+
     pub fn step_emulator(&mut self) {
         self.cpu.exec();
         loop {
@@ -85,6 +122,9 @@ impl Default for NesEmulator {
         NesEmulator {
             busref: Rc::clone(&busref),
             cpu: Cpu6502::new(busref),
+            cycles: 0,
+            is_cpu_idle: false,
+            is_frame_ready: false,
         }
     }
 }
@@ -125,7 +165,7 @@ impl Bus for NesBus {
             return self.ram[(addr & 0x07FF) as usize];
         } else if addr < 0x2008 {
             // The PPU registers often require some mutability in order to work
-            eprintln!(" [INFO] Cannot read_debug() from PPU registers");
+            // eprintln!(" [INFO] Cannot read_debug() from PPU registers");
             return 0;
         } else if addr > 0x401F {
             // Cart
@@ -141,6 +181,8 @@ impl Bus for NesBus {
     fn write(&mut self, addr: u16, data: u8) {
         if addr < 0x2000 {
             self.ram[(addr & 0x07FF) as usize] = data;
+        } else if addr < 0x2008 {
+            self.ppu.write_ppu(addr, data);
         } else if addr > 0x401F {
             // Cart
             match &mut *self.cart.borrow_mut() {
