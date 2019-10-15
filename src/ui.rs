@@ -4,7 +4,7 @@
 
 use crate::devices::nes::NesEmulator;
 use quicksilver::{
-    geom::Rectangle,
+    geom::{Rectangle, Transform},
     graphics::{
         Background::{Col, Img},
         Color, Font, FontStyle, Image, PixelFormat,
@@ -19,6 +19,7 @@ pub struct MainWindow {
     is_suspended: bool,
     status: String,
     use_pallete: bool,
+    frame: Option<Image>,
 }
 
 impl State for MainWindow {
@@ -27,9 +28,10 @@ impl State for MainWindow {
         Ok(MainWindow {
             nes: NesEmulator::default(),
             font,
-            is_suspended: false,
+            is_suspended: true,
             use_pallete: false,
             status: String::from("<RESET>"),
+            frame: Option::None,
         })
     }
 
@@ -42,12 +44,23 @@ impl State for MainWindow {
             self.use_pallete = !self.use_pallete;
         }
         if !self.is_suspended {
-            for _ in 0..5000 {
-                self.nes.step_emulator();
-            }
+            let frame = self.nes.run_frame();
+            let img = Image::from_raw(&*frame, 256, 240, PixelFormat::RGB);
+            self.frame = match img {
+                quicksilver::Result::Ok(img) => Option::Some(img),
+                quicksilver::Result::Err(_) => Option::None,
+            };
             self.status = self.nes.get_status();
         } else if keyboard[Key::F9] == ButtonState::Pressed {
             self.status = self.nes.step_debug();
+        } else if keyboard[Key::F10] == ButtonState::Pressed {
+            let frame = self.nes.run_frame();
+            let img = Image::from_raw(&*frame, 256, 240, PixelFormat::RGB);
+            self.frame = match img {
+                quicksilver::Result::Ok(img) => Option::Some(img),
+                quicksilver::Result::Err(_) => Option::None,
+            };
+            self.status = self.nes.get_status();
         }
         Ok(())
     }
@@ -55,7 +68,15 @@ impl State for MainWindow {
     fn draw(&mut self, window: &mut Window) -> quicksilver::Result<()> {
         window.clear(Color::WHITE)?;
         // Rendering area
-        window.draw(&Rectangle::new((10, 10), (640, 480)), Col(Color::BLACK));
+        window.draw(&Rectangle::new((10, 10), (512, 480)), Col(Color::BLACK));
+        if let Option::Some(frame) = &self.frame {
+            window.draw_ex(
+                &frame.area(),
+                Img(&frame),
+                Transform::scale((2, 2)) * Transform::translate((64 + 5, 60 + 5)),
+                0,
+            );
+        }
         // Debugging
         let status = self.nes.get_status();
         let img = Image::from_raw(
