@@ -144,8 +144,8 @@ impl Bus for NesBus {
         if addr < 0x2000 {
             // AND with 0x07FF to implement the RAM mirrors
             return self.ram[(addr & 0x07FF) as usize];
-        } else if addr < 0x2008 {
-            return self.ppu.read_ppu(addr);
+        } else if addr < 0x4000 {
+            return self.ppu.read_ppu(addr & 0x2007);
         } else if addr > 0x401F {
             // Cart
             return match &*self.cart.borrow() {
@@ -163,7 +163,7 @@ impl Bus for NesBus {
         if addr < 0x2000 {
             // AND with 0x07FF to implement the RAM mirrors
             return self.ram[(addr & 0x07FF) as usize];
-        } else if addr < 0x2008 {
+        } else if addr < 0x4000 {
             // The PPU registers often require some mutability in order to work
             // eprintln!(" [INFO] Cannot read_debug() from PPU registers");
             return 0;
@@ -181,8 +181,8 @@ impl Bus for NesBus {
     fn write(&mut self, addr: u16, data: u8) {
         if addr < 0x2000 {
             self.ram[(addr & 0x07FF) as usize] = data;
-        } else if addr < 0x2008 {
-            self.ppu.write_ppu(addr, data);
+        } else if addr < 0x4000 {
+            self.ppu.write_ppu(addr & 0x2007, data);
         } else if addr > 0x401F {
             // Cart
             match &mut *self.cart.borrow_mut() {
