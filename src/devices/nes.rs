@@ -44,6 +44,7 @@ impl NesEmulator {
         self.is_frame_ready = bus.ppu.is_frame_ready();
         if bus.ppu.is_vblank() {
             self.cpu.trigger_nmi();
+            bus.ppu.ack_vblank();
         }
         drop(bus);
         if self.cycles % 3 == 0 {

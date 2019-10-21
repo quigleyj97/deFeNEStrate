@@ -8,7 +8,7 @@ pub struct Ppu2C02 {
     ///
     /// TODO: This should live inside the Cartridge, as the mapper implementation
     /// has a high degree of control over this region of memory.
-    nametable: [u8; 0x800],
+    nametable: [u8; 0xF00],
     /// The internal palette memory
     palette: [u8; 0x20],
     /// The write-only control register
@@ -68,7 +68,7 @@ impl Ppu2C02 {
     pub fn new(cart: Rc<RefCell<Option<Box<dyn Cartridge>>>>) -> Ppu2C02 {
         Ppu2C02 {
             cart,
-            nametable: [0u8; 2048],
+            nametable: [0u8; 3840],
             palette: [0u8; 32],
             control: 0,
             mask: 0,
@@ -94,9 +94,10 @@ impl Ppu2C02 {
         // Render a checkerboard pattern for now
         if self.scanline > -1 && self.scanline < 240 && self.pixel_cycle < 256 {
             let idx = (i32::from(self.scanline) * 256 + i32::from(self.pixel_cycle)) as usize;
-            let x = (self.pixel_cycle % 20) >= 10;
-            let y = (self.scanline % 20) >= 10;
-            let color = if x == y { 0 } else { 255 };
+            let x = (self.pixel_cycle / 8) as usize;
+            let y = (self.scanline / 8) as usize;
+            let tile = self.nametable[x * 32 + y];
+            let color = if tile == 0x20 { 0 } else { 255 };
             for offset in 0..3 {
                 self.frame_data[idx * 3 + offset] = color;
             }
@@ -131,6 +132,11 @@ impl Ppu2C02 {
         self.vblank_nmi_ready
     }
 
+    /// Acknowledge the vblank NMI, so that the PPU stops asserting it
+    pub fn ack_vblank(&mut self) {
+        self.vblank_nmi_ready = false;
+    }
+
     /// Whether the PPU has completely rendered a frame.
     pub fn is_frame_ready(&self) -> bool {
         self.frame_ready
@@ -161,7 +167,7 @@ impl Ppu2C02 {
                 self.last_bus_value
             }
             ppu_port::PPUDATA => {
-                if addr > 0x3F00 {
+                if addr >= 0x3F00 {
                     // This is palette memory, don't buffer...
                     //
                     // ......ish...
@@ -171,19 +177,11 @@ impl Ppu2C02 {
                     // 0x3F00. So let's do that after setting data, just in case
                     // anything needs that...
                     let data = self.read(self.ppuaddr);
-                    eprintln!(
-                        "read PPUDATA = {:02X}, next = {:02X}",
-                        data, self.ppudata_buffer
-                    );
                     self.ppudata_buffer = self.read(self.ppuaddr & !0x1000);
                     return data;
                 }
                 let data = self.ppudata_buffer;
                 self.ppudata_buffer = self.read(self.ppuaddr);
-                eprintln!(
-                    "read PPUDATA = {:02X}, next = {:02X}",
-                    data, self.ppudata_buffer
-                );
                 return data;
             }
             _ => self.last_bus_value,
