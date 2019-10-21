@@ -528,9 +528,19 @@ impl<T: Bus> Cpu6502<T> {
             AddressingMode::Rel => {
                 self.adv_pc(1);
                 let bytes = self.pc.to_le_bytes();
-                let lo = bytes[0].wrapping_add(ops[1]);
+                // The 'offset' is _signed_, so we need to add it as a signed
+                // integer. Rust doesn't seem to like direct casts since they
+                // can hide undefined behavior on some platforms, so we have
+                // to be explicit.
+                let lo = bytes[0];
                 let hi = bytes[1];
-                bytes_to_addr(hi, lo)
+                let addr = bytes_to_addr(hi, lo);
+                if ops[1] > 127 {
+                    // Twos compliment
+                    addr.wrapping_sub(u16::from(!(ops[1]) + 1))
+                } else {
+                    addr.wrapping_add(u16::from(ops[1]))
+                }
             }
             AddressingMode::ZP => {
                 self.adv_pc(1);
@@ -1049,6 +1059,15 @@ impl<T: Bus> Cpu6502<T> {
         if !self.interrupt_pending {
             return false;
         }
+        eprintln!(
+            " [INFO] CPU Interrupt: {}",
+            if self.maskable_interrupt {
+                "IRQ"
+            } else {
+                "NMI"
+            }
+        );
+        self.interrupt_pending = false;
         let addr_bytes = self.pc.to_le_bytes();
         self.push_stack(addr_bytes[1]);
         self.push_stack(addr_bytes[0]);
