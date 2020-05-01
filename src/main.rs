@@ -37,6 +37,11 @@ fn main() {
     eprintln!("Initializing...");
     let args: Vec<String> = args().collect();
 
+    if args.len() < 2 {
+        eprintln!("No cart file provided, exiting...");
+        return;
+    }
+
     let cart_path = &args[1];
 
     run_with(
