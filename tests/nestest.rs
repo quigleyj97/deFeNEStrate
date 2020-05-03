@@ -34,9 +34,9 @@ fn nestest_exec() {
     nes.load_cart_without_reset(Box::new(cart));
     nes.set_pc(0xC000);
 
-    for _ in 0..5004 {
+    for line in 1..5004 {
         let log = nes.step_debug();
-        println!("{}", log);
+        println!("L{:04} {}", line, log);
         let log = logparse::parse_line(&log);
         let goldline = gold_log.next().unwrap();
         let goldline = logparse::parse_line(&goldline);
