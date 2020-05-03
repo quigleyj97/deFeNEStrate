@@ -29,18 +29,20 @@ fn nestest_exec() {
     let mut nes = NesEmulator::default();
 
     let cart = provider::load_nestest_rom();
-    let mut gold_log = provider::load_gold_standard_log();
+    let gold_log = provider::load_gold_standard_log();
 
     nes.load_cart_without_reset(Box::new(cart));
     nes.set_pc(0xC000);
 
-    for line in 1..5004 {
+    let mut line = 1;
+
+    for gold_line in gold_log {
         let log = nes.step_debug();
         println!("L{:04} {}", line, log);
         let log = logparse::parse_line(&log);
-        let goldline = gold_log.next().unwrap();
-        let goldline = logparse::parse_line(&goldline);
-        logparse::assert_logs_eq(&log, &goldline);
+        let gold_line = logparse::parse_line(&gold_line);
+        logparse::assert_logs_eq(&log, &gold_line);
+        line += 1;
     }
 
     assert_eq!(nes.read_bus(0x0000), 0x00);
