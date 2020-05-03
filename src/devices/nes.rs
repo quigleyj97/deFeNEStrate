@@ -109,10 +109,14 @@ impl NesEmulator {
     //endregion
 
     pub fn load_cart(&mut self, cart: Box<dyn Cartridge>) {
+        self.load_cart_without_reset(cart);
+        self.cpu.reset();
+    }
+
+    pub fn load_cart_without_reset(&mut self, cart: Box<dyn Cartridge>) {
         let bus = self.busref.borrow_mut();
         bus.cart.replace(Option::Some(cart));
         drop(bus);
-        self.cpu.reset();
     }
 }
 
