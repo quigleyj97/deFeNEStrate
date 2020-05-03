@@ -1160,11 +1160,11 @@ impl<T: Bus> fmt::Display for Cpu6502<T> {
             AddressingMode::ZP => format!("{:3?} ${:02X} = {:02X}", self.instr, addr, data),
             AddressingMode::ZPX => format!(
                 "{:3?} ${:02X},X @ {:02X} = {:02X}",
-                self.instr, bytes[1], self.x, addr
+                self.instr, bytes[1], addr, data
             ),
             AddressingMode::ZPY => format!(
                 "{:3?} ${:02X},Y @ {:02X} = {:02X}",
-                self.instr, bytes[1], self.y, addr
+                self.instr, bytes[1], addr, data
             ),
             AddressingMode::Impl => format!("{:3?}", self.instr),
             AddressingMode::Rel => format!("{:3?} ${:04X}", self.instr, addr),
