@@ -27,9 +27,10 @@ macro_rules! illegal_opcode {
 }
 
 macro_rules! unmapped_opcode {
-    ($opcode: expr) => {
-        panic!(format!("Unsupported opcode used: {:02X}", $opcode))
-    };
+    ($opcode: expr) => {{
+        eprintln!("Unsupported opcode used: {:02X}", $opcode);
+        (AddressingMode::Impl, Instruction::NOP)
+    }};
 }
 
 #[inline]
