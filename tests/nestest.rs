@@ -24,6 +24,9 @@ use util::{logparse, provider};
 
 use defenestrate::devices::nes::NesEmulator;
 
+// If true, test Nestest to completion
+const TEST_ILLEGAL_OPCODES: bool = false;
+
 #[test]
 fn nestest_exec() {
     let mut nes = NesEmulator::default();
@@ -43,6 +46,10 @@ fn nestest_exec() {
         let gold_line = logparse::parse_line(&gold_line);
         logparse::assert_logs_eq(&log, &gold_line);
         line += 1;
+        // illegal opcodes begin at line 5004
+        if !TEST_ILLEGAL_OPCODES && line > 5003 {
+            break;
+        }
     }
 
     assert_eq!(nes.read_bus(0x0000), 0x00);
