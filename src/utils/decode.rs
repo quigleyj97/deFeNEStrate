@@ -17,7 +17,7 @@
 //! determine the opcode, and the `bbb` bits determine the addrssing
 //! mode. `cc` never takes the form `11`.
 
-use crate::devices::structs::{AddressingMode, Instruction};
+use crate::utils::structs::cpu::{AddressingMode, Instruction};
 
 macro_rules! illegal_opcode {
     ( $opcode: expr, $mnemonic: expr, $addressingMode: expr ) => {{

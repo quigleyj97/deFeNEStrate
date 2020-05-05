@@ -10,8 +10,8 @@ use std::num::Wrapping;
 use std::rc::Rc;
 
 use crate::databus::Bus;
-use crate::devices::instr_decode;
-use crate::devices::structs::{AddressingMode, Instruction, Status};
+use crate::utils::decode;
+use crate::utils::structs::cpu::*;
 
 fn bytes_to_addr(lo: u8, hi: u8) -> u16 {
     (u16::from(lo) << 8) + u16::from(hi)
@@ -201,7 +201,7 @@ impl<T: Bus> Cpu6502<T> {
     fn decode_opcode(&mut self, instruction: u32) {
         let ops = instruction.to_le_bytes();
 
-        let instr = instr_decode::decode_instruction(ops[0]);
+        let instr = decode::decode_instruction(ops[0]);
         self.addr_mode = instr.0;
         self.instr = instr.1;
     }

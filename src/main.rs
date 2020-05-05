@@ -8,6 +8,7 @@ extern crate stdweb;
 pub mod databus;
 pub mod devices;
 mod ui;
+pub mod utils;
 
 use ui::MainWindow;
 
