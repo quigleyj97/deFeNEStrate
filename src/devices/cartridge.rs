@@ -115,3 +115,24 @@ impl INesHeader {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inesheader_decodes_correctly() {
+        let ines_header_data = [
+            0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x0, 0x0, 0x0, 0x0, 0x0,
+        ];
+
+        let header = INesHeader::from_bytes(ines_header_data);
+        assert_eq!(header.prg_size, 1, "PRG size mismatch");
+        assert_eq!(header.chr_size, 1, "CHR size mismatch");
+        assert_eq!(header.flags_6, 2, "Flags6 mismatch");
+        assert_eq!(header.flags_7, 3, "Flags7 mismatch");
+        assert_eq!(header.flags_8, 4, "Flags8 mismatch");
+        assert_eq!(header.flags_9, 5, "Flags9 mismatch");
+        assert_eq!(header.flags_10, 6, "Flags10 mismatch");
+    }
+}

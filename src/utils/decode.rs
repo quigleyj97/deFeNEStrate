@@ -325,3 +325,29 @@ pub fn decode_instruction(instr: u8) -> (AddressingMode, Instruction) {
         _ => unmapped_opcode!(instr),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decodes_instruction_correctly() {
+        let res = decode_instruction(0xEA);
+        assert_eq!(res.0, AddressingMode::Impl);
+        assert_eq!(res.1, Instruction::NOP);
+    }
+
+    #[test]
+    fn decodes_illegal_opcode_correctly() {
+        let res = decode_instruction(0xFB);
+        assert_eq!(res.0, AddressingMode::AbsY);
+        assert_eq!(res.1, Instruction::NOP);
+    }
+
+    #[test]
+    fn decodes_unmapped_opcode() {
+        let res = decode_instruction(0xF2);
+        assert_eq!(res.0, AddressingMode::Impl);
+        assert_eq!(res.1, Instruction::NOP);
+    }
+}
