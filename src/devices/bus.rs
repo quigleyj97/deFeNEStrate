@@ -126,14 +126,69 @@ impl Bus {
     }
 }
 
-#[cfg(tests)]
+#[cfg(test)]
 mod tests {
     use super::*;
+
+    const TEST_ADDR: u16 = 0x34;
+    const TEST_DATA: u8 = 0xEA;
+    const TEST_MIRROR: u16 = 0x00FF;
+    const MIRRORED_ADDR: u16 = 0x1234;
+
+    struct TestObj {}
+    impl BusDevice for TestObj {
+        fn read(&mut self, addr: u16) -> u8 {
+            assert_eq!(addr, TEST_ADDR, "Read address mismatch");
+            TEST_DATA
+        }
+
+        fn write(&mut self, addr: u16, data: u8) {
+            assert_eq!(addr, TEST_ADDR, "Write address mismatch");
+            assert_eq!(data, TEST_DATA, "Test data mismatch");
+        }
+    }
 
     #[test]
     fn constructs() {
         let bus = Bus::new();
         assert_eq!(0, bus.devices.len());
         assert_eq!(0, bus.last_bus_val);
+    }
+
+    #[test]
+    fn adds_mapped_device() {
+        let dev = Box::new(TestObj {});
+        let mut bus = Bus::new();
+        bus.map_device(dev, 0, 0xFFFF, 0xFFFF);
+        assert!(bus.devices.len() == 1);
+        assert_eq!(TEST_DATA, bus.read(TEST_ADDR));
+        bus.write(TEST_ADDR, TEST_DATA);
+    }
+
+    #[test]
+    fn handles_offsets_correctly() {
+        const ADDR_OFFSET: u16 = 0xFF;
+        let dev = Box::new(TestObj {});
+        let mut bus = Bus::new();
+        bus.map_device(dev, ADDR_OFFSET, 0xFFFF, 0xFFFF);
+        assert_eq!(TEST_DATA, bus.read(TEST_ADDR + ADDR_OFFSET));
+    }
+
+    #[test]
+    fn mirrors_correctly() {
+        let dev = Box::new(TestObj {});
+        let mut bus = Bus::new();
+        bus.map_device(dev, 0, 0xFFFF, TEST_MIRROR);
+        assert_eq!(TEST_DATA, bus.read(MIRRORED_ADDR));
+        bus.write(MIRRORED_ADDR, TEST_DATA);
+    }
+
+    #[test]
+    fn mirrors_with_offset_correctly() {
+        const ADDR_OFFSET: u16 = 0xABCD;
+        let dev = Box::new(TestObj {});
+        let mut bus = Bus::new();
+        bus.map_device(dev, ADDR_OFFSET, 0xFFFF, TEST_MIRROR);
+        assert_eq!(TEST_DATA, bus.read(MIRRORED_ADDR + ADDR_OFFSET));
     }
 }
