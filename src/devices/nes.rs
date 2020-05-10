@@ -8,11 +8,13 @@ use crate::devices::bus::BusDevice;
 use crate::devices::cartridge::{CartCpuBridge, CartPpuBridge, Cartridge, CART_START_ADDR};
 use crate::devices::cpu::Cpu6502;
 use crate::devices::ppu::Ppu2C02;
+use crate::devices::ram::Ram;
 
 // This is what owns the CPU and bus
 pub struct NesEmulator {
     cpu: Cpu6502,
     ppu: Ppu2C02,
+    ram: Ram,
     cart: Box<dyn Cartridge>,
     cartCpu: CartCpuBridge<dyn Cartridge>,
     cartPpu: CartPpuBridge<dyn Cartridge>,
@@ -125,10 +127,12 @@ impl NesEmulator {
     fn new(cart: Box<dyn Cartridge>) -> NesEmulator {
         let cartCpu = CartCpuBridge::new(cart.as_ref());
         let cartPpu = CartPpuBridge::new(cart.as_ref());
+        let ram = Ram::new(2048);
         let cpu = Cpu6502::new();
         let ppu = Ppu2C02::new();
         cpu.bus
             .map_device(&cartCpu, CART_START_ADDR, 0xFFFF, 0xFFFF);
+        cpu.bus.map_device(&ram, 0x0000, 0x2000, 0x07FF);
         NesEmulator {
             cpu,
             ppu,
@@ -139,30 +143,6 @@ impl NesEmulator {
             is_cpu_idle: false,
             is_frame_ready: false,
         }
-    }
-}
-
-struct Ram {
-    memory: Box<[u8; 2048]>,
-}
-
-impl Ram {
-    fn new() -> Ram {
-        Ram {
-            memory: Box::new([0u8; 2048]),
-        }
-    }
-}
-
-impl BusDevice for Ram {
-    fn read(&self, addr: u16) -> u8 {
-        assert!(addr < 2048, "Precondition failed: Addr exceeds RAM size");
-        self.memory[addr as usize]
-    }
-
-    fn write(&mut self, addr: u16, data: u8) {
-        assert!(addr < 2048, "Precondition failed: Addr exceeds RAM size");
-        self.memory[addr as usize] = data;
     }
 }
 
