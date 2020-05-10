@@ -1,3 +1,4 @@
+use crate::devices::bus::BusDevice;
 use crate::utils::ines::INesHeader;
 
 /// The interface for a NES Cart.
@@ -17,6 +18,53 @@ pub trait Cartridge {
     fn read_prg(&self, addr: u16) -> u8;
 
     fn write_prg(&mut self, addr: u16, data: u8);
+}
+
+pub const CART_START_ADDR: u16 = 0x4020;
+pub const CART_PPU_START_ADDR: u16 = 0x2000;
+
+pub struct CartCpuBridge<T: Cartridge + ?Sized> {
+    cart: *const T,
+}
+
+impl<T: Cartridge + ?Sized> CartCpuBridge<T> {
+    pub fn new(cart: *const T) -> CartCpuBridge<T> {
+        CartCpuBridge { cart }
+    }
+}
+
+impl<T: Cartridge + ?Sized> BusDevice for CartCpuBridge<T> {
+    fn read(&self, addr: u16) -> u8 {
+        unsafe { (*self.cart).read_prg(addr + CART_START_ADDR) }
+    }
+
+    fn write(&self, addr: u16, data: u8) {
+        unsafe {
+            (*self.cart).write_prg(addr + CART_START_ADDR, data);
+        }
+    }
+}
+
+pub struct CartPpuBridge<T: Cartridge + ?Sized> {
+    cart: *const T,
+}
+
+impl<T: Cartridge + ?Sized> CartPpuBridge<T> {
+    pub fn new(cart: *const T) -> CartPpuBridge<T> {
+        CartPpuBridge { cart }
+    }
+}
+
+impl<T: Cartridge + ?Sized> BusDevice for CartPpuBridge<T> {
+    fn read(&self, addr: u16) -> u8 {
+        unsafe { (*self.cart).read_chr(addr + CART_PPU_START_ADDR) }
+    }
+
+    fn write(&self, addr: u16, data: u8) {
+        unsafe {
+            (*self.cart).write_chr(addr + CART_PPU_START_ADDR, data);
+        }
+    }
 }
 
 /// The simplest possible sort of cartridge
