@@ -1,17 +1,24 @@
-use crate::devices::cartridge::Cartridge;
+use crate::devices::bus::Bus;
+use crate::devices::ram::Ram;
 use crate::utils::structs::ppu::*;
-use std::cell::RefCell;
-use std::rc::Rc;
+
+const PPU_NAMETABLE_START_ADDR: u16 = 0x2000;
+const PPU_NAMETABLE_END_ADDR: u16 = 0x4000;
+const PPU_NAMETABLE_MASK: u16 = 0x0FFF;
+const PPU_PALETTE_START_ADDR: u16 = 0x4000;
+const PPU_PALETTE_END_ADDR: u16 = 0xFFFF;
+const PPU_PALETTE_MASK: u16 = 0x001F;
 
 pub struct Ppu2C02 {
-    cart: Rc<RefCell<Option<Box<dyn Cartridge>>>>,
+    /// The PPU bus
+    pub bus: Bus,
     /// The PPU nametables
     ///
     /// TODO: This should live inside the Cartridge, as the mapper implementation
     /// has a high degree of control over this region of memory.
-    nametable: [u8; 0xF00],
+    nametable: Ram,
     /// The internal palette memory
-    palette: [u8; 0x20],
+    palette: Ram,
     /// The write-only control register
     control: u8,
     /// The mask register used for controlling various aspects of rendering
@@ -66,11 +73,27 @@ pub struct Ppu2C02 {
 
 impl Ppu2C02 {
     //#region Statics
-    pub fn new(cart: Rc<RefCell<Option<Box<dyn Cartridge>>>>) -> Ppu2C02 {
+    pub fn new() -> Ppu2C02 {
+        let bus = Bus::new();
+        let nametable = Ram::new(0xF00);
+        let palette = Ram::new(0x20);
+        // TODO: Validate this
+        bus.map_device(
+            &nametable,
+            PPU_NAMETABLE_START_ADDR,
+            PPU_NAMETABLE_END_ADDR,
+            PPU_NAMETABLE_MASK,
+        );
+        bus.map_device(
+            &palette,
+            PPU_PALETTE_START_ADDR,
+            PPU_PALETTE_END_ADDR,
+            PPU_PALETTE_MASK,
+        );
         Ppu2C02 {
-            cart,
-            nametable: [0u8; 3840],
-            palette: [0u8; 32],
+            bus,
+            nametable,
+            palette,
             control: 0,
             mask: 0,
             // cf NesDev PPU powerup state
@@ -95,9 +118,9 @@ impl Ppu2C02 {
         // Render a checkerboard pattern for now
         if self.scanline > -1 && self.scanline < 240 && self.pixel_cycle < 256 {
             let idx = (i32::from(self.scanline) * 256 + i32::from(self.pixel_cycle)) as usize;
-            let x = (self.pixel_cycle / 8) as usize;
-            let y = (self.scanline / 8) as usize;
-            let tile = self.nametable[x * 32 + y];
+            let x = (self.pixel_cycle / 8) as u16;
+            let y = (self.scanline / 8) as u16;
+            let tile = self.bus.read(PPU_NAMETABLE_START_ADDR + x * 32 + y);
             let color = if tile == 0x20 { 0 } else { 255 };
             for offset in 0..3 {
                 self.frame_data[idx * 3 + offset] = color;
@@ -231,73 +254,6 @@ impl Ppu2C02 {
     }
 
     //region Debug aids
-    pub fn dump_chr(&self) -> Box<[u8; 8192]> {
-        let mut buf = Box::new([0u8; 8192]);
-        let cart_ref = self.cart.borrow();
-        let cart = (*cart_ref).as_ref().unwrap();
-
-        for addr in 0..8192 {
-            buf[addr] = cart.read_chr(addr as u16)
-        }
-
-        buf
-    }
-
-    pub fn dump_pattern_table(&self, use_pallete: bool) -> Box<[u8; 256 * 128 * 3]> {
-        let mut buf = Box::new([0u8; 256 * 128 * 3]);
-
-        let cart_ref = self.cart.borrow();
-        let cart = (*cart_ref).as_ref().unwrap();
-
-        for r in 0..256 {
-            for c in 0..128 {
-                // How the address is calculated:
-                // RR = (r / 8) represents the first 2 nibbles of our address,
-                // C = (c / 8) represents the third.
-                // c = The fourth comes from the actual pixel row, ie, r % 8.
-                // eg, 0xRRCr
-                let addr = (r / 8 * 0x100) + (r % 8) + (c / 8) * 0x10; //((r / 8) << 8) | ((c / 8) << 4) | (r % 8);
-                let lo = cart.read_chr(addr);
-                let hi = cart.read_chr(addr + 8);
-                // Now to pull the column, we shift right by c mod 8.
-                let offset = 7 - (c % 8);
-                let color = ((1 & (hi >> offset)) << 1) | (1 & (lo >> offset));
-                //#region Grayscale colors
-                if !use_pallete {
-                    // This algorithm isn't true color, but it's
-                    // not really possible to be accurate anyway since CHR tiles
-                    // have no explicit color (that is defined by the pallete
-                    // pairing in the nametable, which is a separate step and allows
-                    // CHR tiles to be reused)
-                    let color = match color {
-                        0b00 => 0x00,                       // black
-                        0b01 => 0x7C,                       // dark gray
-                        0b10 => 0xBC,                       // light gray
-                        0b11 => 0xF8,                       // aaalllllmooosst white,
-                        _ => panic!("Invalid color index"), // I screwed up
-                    };
-                    buf[(u32::from(r * 128) * 3 + u32::from(c) * 3) as usize] = color;
-                    buf[(u32::from(r * 128) * 3 + u32::from(c) * 3 + 1) as usize] = color;
-                    buf[(u32::from(r * 128) * 3 + u32::from(c) * 3 + 2) as usize] = color;
-                }
-                //#endregion
-                //#region Palette 0 colors
-                else {
-                    let color = self.read(0x3F00 | u16::from(color));
-                    let red = PALLETE_TABLE[usize::from(color) * 3];
-                    let green = PALLETE_TABLE[usize::from(color) * 3 + 1];
-                    let blue = PALLETE_TABLE[usize::from(color) * 3 + 2];
-                    buf[(u32::from(r * 128) * 3 + u32::from(c) * 3) as usize] = red;
-                    buf[(u32::from(r * 128) * 3 + u32::from(c) * 3 + 1) as usize] = green;
-                    buf[(u32::from(r * 128) * 3 + u32::from(c) * 3 + 2) as usize] = blue;
-                }
-                //#endregion
-            }
-        }
-
-        buf
-    }
-
     pub fn dump_palettes(&self) -> [u8; 128 * 2 * 3] {
         let mut buf = [0u8; 128 * 2 * 3];
         for c in 0..32 {
@@ -317,72 +273,13 @@ impl Ppu2C02 {
         }
         buf
     }
-
-    pub fn poke_chr(&mut self, addr: u16, data: u8) {
-        let mut cart_ref = self.cart.borrow_mut();
-        match &mut *cart_ref {
-            Option::None => {
-                eprintln!("Cannot POKE null cart");
-            }
-            Option::Some(cart) => cart.write_chr(addr, data),
-        }
-    }
     //endregion
 
     pub fn read(&self, addr: u16) -> u8 {
-        if addr < 0x2000 {
-            // read from cart
-            let cart_ref = self.cart.borrow();
-            return match (*cart_ref).as_ref() {
-                Option::None => 0, // TODO: Open bus
-                Option::Some(cart) => cart.read_chr(addr),
-            };
-        } else if addr < 0x3F00 {
-            // Mirroring occurs over 0x3000..0x3EFF -> 0x2000..0x2EFF
-            // Functionally this means that $3EFF = $(0x3EFF & !0x1000) = $2EFF
-            let addr = ((addr & !0x1000) - 0x2000) % 0x0800;
-            // TODO: Mirroring
-            return self.nametable[addr as usize];
-        } else if addr < 0x4000 {
-            let addr = addr & 0x1F;
-            let addr = match addr {
-                0x10 => 0x00,
-                0x14 => 0x04,
-                0x18 => 0x08,
-                0x1C => 0x0C,
-                _ => addr,
-            };
-            return self.palette[addr as usize];
-        }
-
-        // TODO: Open bus
-        0
+        self.bus.read(addr)
     }
 
     pub fn write(&mut self, addr: u16, data: u8) {
-        if addr < 0x2000 {
-            // read from cart
-            let mut cart_ref = self.cart.borrow_mut();
-            match &mut *cart_ref {
-                Option::None => {} // TODO: Open bus
-                Option::Some(cart) => cart.write_chr(addr, data),
-            };
-        } else if addr < 0x3F00 {
-            // Mirroring occurs over 0x3000..0x3EFF -> 0x2000..0x2EFF
-            // Functionally this means that $3EFF = $(0x3EFF & !0x1000) = $2EFF
-            let addr = ((addr & !0x1000) - 0x2000) % 0x0800;
-            // TODO: Mirroring
-            self.nametable[addr as usize] = data;
-        } else if addr < 0x4000 {
-            let addr = addr & 0x1F;
-            let addr = match addr {
-                0x10 => 0x00,
-                0x14 => 0x04,
-                0x18 => 0x08,
-                0x1C => 0x0C,
-                _ => addr,
-            };
-            self.palette[addr as usize] = data;
-        }
+        self.bus.write(addr, data);
     }
 }
