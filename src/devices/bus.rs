@@ -97,6 +97,18 @@ impl Bus {
         ));
     }
 
+    pub fn unmap_device(&mut self, dev: *const dyn BusDevice) {
+        let mut i = 0;
+        while i != self.devices.len() {
+            if self.devices[i].dev == (dev as *mut dyn BusDevice) {
+                self.devices.remove(i);
+                return;
+            }
+            i += 1;
+        }
+        panic!("Attempted to remove unmapped device: {:#?}", dev);
+    }
+
     pub fn read(&mut self, addr: u16) -> u8 {
         for dev in &mut self.devices {
             match dev.mapped_read(addr) {
@@ -194,5 +206,23 @@ mod tests {
         let mut bus = Bus::new();
         bus.map_device(&dev, ADDR_OFFSET, 0xFFFF, TEST_MIRROR);
         assert_eq!(TEST_DATA, bus.read(MIRRORED_ADDR + ADDR_OFFSET));
+    }
+
+    #[test]
+    fn unmaps_correctly() {
+        let dev = TestObj {};
+        let mut bus = Bus::new();
+        bus.map_device(&dev, 0, 0xFFFF, 0xFFFF);
+        bus.read(TEST_ADDR);
+        bus.unmap_device(&dev);
+        assert_eq!(bus.devices.len(), 0, "Bus device not dropped!");
+    }
+
+    #[test]
+    #[should_panic]
+    fn panics_when_attempting_to_unmap_unmapped_dev() {
+        let dev = TestObj {};
+        let mut bus = Bus::new();
+        bus.unmap_device(&dev);
     }
 }
