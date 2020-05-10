@@ -4,16 +4,18 @@
 //! linkages between the 2A03 and it's various peripherals, as well as the CPU
 //! and PPU.
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
-use super::{cartridge::Cartridge, cpu::Cpu6502, ppu::Ppu2C02};
-use crate::databus::Bus;
+use crate::devices::bus::BusDevice;
+use crate::devices::cartridge::{CartCpuBridge, CartPpuBridge, Cartridge, CART_START_ADDR};
+use crate::devices::cpu::Cpu6502;
+use crate::devices::ppu::Ppu2C02;
 
 // This is what owns the CPU and bus
 pub struct NesEmulator {
-    cpu: Cpu6502<NesBus>,
-    busref: Rc<RefCell<NesBus>>,
+    cpu: Cpu6502,
+    ppu: Ppu2C02,
+    cart: Box<dyn Cartridge>,
+    cartCpu: CartCpuBridge<dyn Cartridge>,
+    cartPpu: CartPpuBridge<dyn Cartridge>,
     /// The total number of cycles that have been executed.
     cycles: u16,
     is_cpu_idle: bool,
@@ -29,8 +31,7 @@ impl NesEmulator {
                 break;
             }
         }
-        let mut bus = self.busref.borrow_mut();
-        bus.ppu.get_buffer()
+        self.ppu.get_buffer()
     }
 
     pub fn tick(&mut self) {
@@ -39,14 +40,12 @@ impl NesEmulator {
         if self.cycles == u16::max_value() {
             self.cycles = 0;
         }
-        let mut bus = self.busref.borrow_mut();
-        bus.ppu.clock();
-        self.is_frame_ready = bus.ppu.is_frame_ready();
-        if bus.ppu.is_vblank() {
+        self.ppu.clock();
+        self.is_frame_ready = self.ppu.is_frame_ready();
+        if self.ppu.is_vblank() {
             self.cpu.trigger_nmi();
-            bus.ppu.ack_vblank();
+            self.ppu.ack_vblank();
         }
-        drop(bus);
         if self.cycles % 3 == 0 {
             if self.is_cpu_idle {
                 self.cpu.exec();
@@ -89,8 +88,7 @@ impl NesEmulator {
     /// This is for test automation to read specific addresses and check for
     /// errors in some comprehensive test ROMs
     pub fn read_bus(&mut self, addr: u16) -> u8 {
-        let mut bus = self.busref.borrow_mut();
-        bus.read(addr)
+        self.cpu.bus.read(addr)
     }
 
     pub fn get_status(&self) -> String {
@@ -98,13 +96,11 @@ impl NesEmulator {
     }
 
     pub fn get_chr(&self, use_pallete: bool) -> Box<[u8; 256 * 128 * 3]> {
-        let bus = self.busref.borrow();
-        bus.ppu.dump_pattern_table(use_pallete)
+        self.ppu.dump_pattern_table(use_pallete)
     }
 
     pub fn get_palletes(&self) -> [u8; 128 * 2 * 3] {
-        let bus = self.busref.borrow();
-        bus.ppu.dump_palettes()
+        self.ppu.dump_palettes()
     }
     //endregion
 
@@ -113,20 +109,32 @@ impl NesEmulator {
         self.cpu.reset();
     }
 
+    // TODO: Move the reset responsibility to the CPU directly
     pub fn load_cart_without_reset(&mut self, cart: Box<dyn Cartridge>) {
-        let bus = self.busref.borrow_mut();
-        bus.cart.replace(Option::Some(cart));
-        drop(bus);
+        self.cpu.bus.unmap_device(&self.cartCpu);
+        self.cart = cart;
+        let cpuBridge = CartCpuBridge::new(cart.as_ref());
+        self.cartCpu = cpuBridge;
+        self.cpu
+            .bus
+            .map_device(&self.cartCpu, CART_START_ADDR, 0xFFFF, 0xFFFF);
     }
 }
 
-impl Default for NesEmulator {
-    fn default() -> NesEmulator {
-        let bus = NesBus::default();
-        let busref = Rc::new(RefCell::new(bus));
+impl NesEmulator {
+    fn new(cart: Box<dyn Cartridge>) -> NesEmulator {
+        let cartCpu = CartCpuBridge::new(cart.as_ref());
+        let cartPpu = CartPpuBridge::new(cart.as_ref());
+        let cpu = Cpu6502::new();
+        let ppu = Ppu2C02::new();
+        cpu.bus
+            .map_device(&cartCpu, CART_START_ADDR, 0xFFFF, 0xFFFF);
         NesEmulator {
-            busref: Rc::clone(&busref),
-            cpu: Cpu6502::new(busref),
+            cpu,
+            ppu,
+            cart,
+            cartCpu,
+            cartPpu,
             cycles: 0,
             is_cpu_idle: false,
             is_frame_ready: false,
@@ -134,77 +142,58 @@ impl Default for NesEmulator {
     }
 }
 
-/// This is what owns the various bus devices
-struct NesBus {
-    /// The 2kb of ram installed on the NES
-    ram: Box<[u8; 2048]>,
-    /// The currently loaded Cart image, or None
-    cart: Rc<RefCell<Option<Box<dyn Cartridge>>>>,
-    /// The 2C02 Picture Processing Unit
-    ppu: Ppu2C02,
+struct Ram {
+    memory: Box<[u8; 2048]>,
 }
 
-impl Bus for NesBus {
-    fn read(&mut self, addr: u16) -> u8 {
-        if addr < 0x2000 {
-            // AND with 0x07FF to implement the RAM mirrors
-            return self.ram[(addr & 0x07FF) as usize];
-        } else if addr < 0x4000 {
-            return self.ppu.read_ppu(addr & 0x2007);
-        } else if addr > 0x401F {
-            // Cart
-            return match &*self.cart.borrow() {
-                Option::None => 0,
-                Option::Some(cart) => cart.read_prg(addr),
-            };
+impl Ram {
+    fn new() -> Ram {
+        Ram {
+            memory: Box::new([0u8; 2048]),
         }
-        // Open bus
-        // Technically this should be the last read byte, randomly decayed. But
-        // I'm lazy, and hope that nothing reasonable actually relies on that...
-        0
     }
+}
 
-    fn read_debug(&self, addr: u16) -> u8 {
-        if addr < 0x2000 {
-            // AND with 0x07FF to implement the RAM mirrors
-            return self.ram[(addr & 0x07FF) as usize];
-        } else if addr < 0x4000 {
-            // The PPU registers often require some mutability in order to work
-            // eprintln!(" [INFO] Cannot read_debug() from PPU registers");
-            return 0;
-        } else if addr > 0x401F {
-            // Cart
-            return match &*self.cart.borrow() {
-                Option::None => 0,
-                Option::Some(cart) => cart.read_prg(addr),
-            };
-        }
-        // Open bus
-        0
+impl BusDevice for Ram {
+    fn read(&self, addr: u16) -> u8 {
+        assert!(addr < 2048, "Precondition failed: Addr exceeds RAM size");
+        self.memory[addr as usize]
     }
 
     fn write(&mut self, addr: u16, data: u8) {
-        if addr < 0x2000 {
-            self.ram[(addr & 0x07FF) as usize] = data;
-        } else if addr < 0x4000 {
-            self.ppu.write_ppu(addr & 0x2007, data);
-        } else if addr > 0x401F {
-            // Cart
-            match &mut *self.cart.borrow_mut() {
-                Option::None => {}
-                Option::Some(cart) => cart.write_prg(addr, data),
-            }
-        }
+        assert!(addr < 2048, "Precondition failed: Addr exceeds RAM size");
+        self.memory[addr as usize] = data;
     }
 }
 
-impl Default for NesBus {
-    fn default() -> NesBus {
-        let cart = Rc::new(RefCell::new(Option::None));
-        NesBus {
-            ram: Box::new([0u8; 2048]),
-            cart: Rc::clone(&cart),
-            ppu: Ppu2C02::new(cart),
-        }
+const PPU_REGISTER_START_ADDR: u16 = 0x2000;
+const PPU_REGISTER_END_ADDR: u16 = 0x3FFF;
+const PPU_REGISTER_MASK: u16 = 0x0007;
+
+struct PpuRegisters {
+    ppu: *const Ppu2C02,
+}
+
+impl PpuRegisters {
+    fn new(ppu: *const Ppu2C02) -> PpuRegisters {
+        PpuRegisters { ppu }
+    }
+}
+
+impl BusDevice for PpuRegisters {
+    fn read(&self, addr: u16) -> u8 {
+        assert!(
+            addr < 8,
+            "Precondition failed: Addr exceeds PPU register size"
+        );
+        unsafe { (*self.ppu).read_ppu(addr + PPU_REGISTER_START_ADDR) }
+    }
+
+    fn write(&mut self, addr: u16, data: u8) {
+        assert!(
+            addr < 8,
+            "Precondition failed: Addr exceeds PPU register size"
+        );
+        unsafe { (*self.ppu).write_ppu(addr + PPU_REGISTER_START_ADDR, data) }
     }
 }
