@@ -44,6 +44,12 @@ pub struct Cpu6502 {
     maskable_interrupt: bool,
 }
 
+impl Default for Cpu6502 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Cpu6502 {
     pub fn tick(&mut self) -> bool {
         if self.cycles > 0 {
@@ -110,10 +116,9 @@ impl Cpu6502 {
     }
 
     fn load_opcode(&mut self) {
-        let mut bus = self.bus;
-        let opcode = bus.read(self.state.pc);
-        let operand1 = bus.read((Wrapping(self.state.pc) + Wrapping(1)).0);
-        let operand2 = bus.read((Wrapping(self.state.pc) + Wrapping(2)).0);
+        let opcode = self.bus.read(self.state.pc);
+        let operand1 = self.bus.read((Wrapping(self.state.pc) + Wrapping(1)).0);
+        let operand2 = self.bus.read((Wrapping(self.state.pc) + Wrapping(2)).0);
         self.state.instruction =
             u32::from(opcode) + (u32::from(operand1) << 8) + (u32::from(operand2) << 16)
     }
@@ -337,12 +342,6 @@ impl Cpu6502 {
     fn exec_instr(&mut self) {
         let CpuState {
             instr,
-            ref status,
-            ref acc,
-            ref x,
-            ref y,
-            ref pc,
-            ref stack,
             addr_mode,
             addr,
             ..
@@ -351,61 +350,66 @@ impl Cpu6502 {
             //region Arithmetic ops
             // ADC SBC
             Instruction::ADC => {
-                if status.contains(Status::DECIMAL) {
+                if self.state.status.contains(Status::DECIMAL) {
                     eprintln!(" [WARN] This emulator doesn't support BCD, but the BCD flag is set");
                 }
                 let op = self.read();
-                let val = Wrapping(u16::from(*acc))
+                let val = Wrapping(u16::from(self.state.acc))
                     + Wrapping(u16::from(op))
-                    + Wrapping(if status.contains(Status::CARRY) { 1 } else { 0 });
+                    + Wrapping(if self.state.status.contains(Status::CARRY) {
+                        1
+                    } else {
+                        0
+                    });
                 self.check_carry(val.0);
-                self.check_overflow(*acc, op);
-                *acc = (0xFF & val.0) as u8;
-                self.check_zero(*acc);
-                self.check_negative(*acc);
+                self.check_overflow(self.state.acc, op);
+                self.state.acc = (0xFF & val.0) as u8;
+                self.check_zero(self.state.acc);
+                self.check_negative(self.state.acc);
             }
             Instruction::SBC => {
-                if status.contains(Status::DECIMAL) {
+                if self.state.status.contains(Status::DECIMAL) {
                     eprintln!(" [WARN] This emulator doesn't support BCD, but the BCD flag is set");
                 }
                 let op = self.read();
-                let val = Wrapping(u16::from(*acc))
+                let val = Wrapping(u16::from(self.state.acc))
                     - Wrapping(u16::from(op))
-                    - Wrapping(if !status.contains(Status::CARRY) {
+                    - Wrapping(if !self.state.status.contains(Status::CARRY) {
                         1
                     } else {
                         0
                     });
                 self.check_carry(!val.0);
-                self.check_overflow(*acc, !op);
-                *acc = (0xFF & val.0) as u8;
-                self.check_zero(*acc);
-                self.check_negative(*acc);
+                self.check_overflow(self.state.acc, !op);
+                self.state.acc = (0xFF & val.0) as u8;
+                self.check_zero(self.state.acc);
+                self.check_negative(self.state.acc);
             }
             //endregion
 
             //region Bitwise ops
             // AND BIT EOR ORA
             Instruction::AND => {
-                *acc &= self.read();
-                self.check_zero(*acc);
-                self.check_negative(*acc);
+                self.state.acc &= self.read();
+                self.check_zero(self.state.acc);
+                self.check_negative(self.state.acc);
             }
             Instruction::BIT => {
                 let op = self.read();
-                let res = *acc & op;
+                let res = self.state.acc & op;
                 self.check_zero(res);
-                *status = Status::from_bits_truncate((status.bits() & 0x3F) | (0xC0 & op));
+                self.state.status =
+                    Status::from_bits_truncate((self.state.status.bits() & 0x3F) | (0xC0 & op));
             }
             Instruction::EOR => {
-                *acc ^= self.read();
-                self.check_zero(*acc);
-                self.check_negative(*acc);
+                self.state.acc ^= self.read();
+                self.check_zero(self.state.acc);
+                self.check_negative(self.state.acc);
             }
             Instruction::ORA => {
-                *acc |= self.read();
-                self.check_zero(*acc);
-                self.check_negative(*acc);
+                self.state.acc |= self.read();
+                self.check_zero(self.state.acc);
+                self.check_negative(self.state.acc);
             }
             //endregion
             Instruction::ASL => {
@@ -420,7 +424,7 @@ impl Cpu6502 {
                     self.cycles += 1;
                 };
                 match addr_mode {
-                    AddressingMode::Accum => *acc = res,
+                    AddressingMode::Accum => self.state.acc = res,
                     _ => self.write(res),
                 }
             }
@@ -428,95 +432,95 @@ impl Cpu6502 {
             //region Branch instructions
             // BPL BMI BVC BVS BCC BCS BEQ BNE
             Instruction::BPL => {
-                if status.contains(Status::NEGATIVE) {
+                if self.state.status.contains(Status::NEGATIVE) {
                     return;
                 }
                 self.cycles += 1;
-                *pc = addr;
+                self.state.pc = addr;
             }
             Instruction::BMI => {
-                if !status.contains(Status::NEGATIVE) {
+                if !self.state.status.contains(Status::NEGATIVE) {
                     return;
                 }
                 self.cycles += 1;
-                *pc = addr;
+                self.state.pc = addr;
             }
             Instruction::BVC => {
-                if status.contains(Status::OVERFLOW) {
+                if self.state.status.contains(Status::OVERFLOW) {
                     return;
                 }
                 self.cycles += 1;
-                *pc = addr;
+                self.state.pc = addr;
             }
             Instruction::BVS => {
-                if !status.contains(Status::OVERFLOW) {
+                if !self.state.status.contains(Status::OVERFLOW) {
                     return;
                 }
                 self.cycles += 1;
-                *pc = addr;
+                self.state.pc = addr;
             }
             Instruction::BCC => {
-                if status.contains(Status::CARRY) {
+                if self.state.status.contains(Status::CARRY) {
                     return;
                 }
                 self.cycles += 1;
-                *pc = addr;
+                self.state.pc = addr;
             }
             Instruction::BCS => {
-                if !status.contains(Status::CARRY) {
+                if !self.state.status.contains(Status::CARRY) {
                     return;
                 }
                 self.cycles += 1;
-                *pc = addr;
+                self.state.pc = addr;
             }
             Instruction::BEQ => {
-                if !status.contains(Status::ZERO) {
+                if !self.state.status.contains(Status::ZERO) {
                     return;
                 }
                 self.cycles += 1;
-                *pc = addr;
+                self.state.pc = addr;
             }
             Instruction::BNE => {
-                if status.contains(Status::ZERO) {
+                if self.state.status.contains(Status::ZERO) {
                     return;
                 }
                 self.cycles += 1;
-                *pc = addr;
+                self.state.pc = addr;
             }
             //endregion
             Instruction::BRK => {
-                let addr_bytes = pc.to_le_bytes();
+                let addr_bytes = self.state.pc.to_le_bytes();
                 self.push_stack(addr_bytes[1]);
                 self.push_stack(addr_bytes[0]);
                 self.set_flag(Status::BREAK);
                 self.set_flag(Status::UNUSED);
-                let status = status.bits();
+                let status = self.state.status.bits();
                 self.push_stack(status);
                 let addr_hi = self.read_bus(0xFFFE);
                 let addr_lo = self.read_bus(0xFFFF);
-                *pc = bytes_to_addr(addr_lo, addr_hi);
+                self.state.pc = bytes_to_addr(addr_lo, addr_hi);
             }
 
             //region Compare functions
             // CMP CPX CPY
             Instruction::CMP => {
                 let data = self.read();
-                let res = Wrapping(*acc) - Wrapping(data);
-                status.set(Status::CARRY, *acc >= data);
+                let res = Wrapping(self.state.acc) - Wrapping(data);
+                self.state.status.set(Status::CARRY, self.state.acc >= data);
                 self.check_zero(res.0);
                 self.check_negative(res.0);
             }
             Instruction::CPX => {
                 let data = self.read();
-                let res = Wrapping(*x) - Wrapping(data);
-                status.set(Status::CARRY, *x >= data);
+                let res = Wrapping(self.state.x) - Wrapping(data);
+                self.state.status.set(Status::CARRY, self.state.x >= data);
                 self.check_zero(res.0);
                 self.check_negative(res.0);
             }
             Instruction::CPY => {
                 let data = self.read();
-                let res = Wrapping(*y) - Wrapping(data);
-                status.set(Status::CARRY, *y >= data);
+                let res = Wrapping(self.state.y) - Wrapping(data);
+                self.state.status.set(Status::CARRY, self.state.y >= data);
                 self.check_zero(res.0);
                 self.check_negative(res.0);
             }
@@ -546,7 +550,9 @@ impl Cpu6502 {
                 // bit so that we can use it to set the carry bit
                 let data = u16::from(self.read()) << 7;
                 // we want the last bit for the carry -----v
-                status.set(Status::CARRY, data & 0x00_80 == 0x00_80);
+                self.state
+                    .status
+                    .set(Status::CARRY, data & 0x00_80 == 0x00_80);
                 // throw out the extra byte now that we're done with it
                 let data = data.to_be_bytes()[0];
                 self.check_zero(data);
@@ -558,7 +564,7 @@ impl Cpu6502 {
                         self.cycles += 1;
                         self.write(data);
                     }
-                    AddressingMode::Accum => *acc = data,
+                    AddressingMode::Accum => self.state.acc = data,
                     _ => self.write(data),
                 };
                 // cycle count correction
@@ -570,18 +576,20 @@ impl Cpu6502 {
                 // See my notes on the LSR instruction, I do a similar trick
                 // here (for similar reasons)
                 let data = u16::from(self.read()) << 7
-                    | if status.contains(Status::CARRY) {
+                    | if self.state.status.contains(Status::CARRY) {
                         0x80_00
                     } else {
                         0x0
                     };
-                status.set(Status::CARRY, data & 0x00_80 == 0x00_80);
+                self.state
+                    .status
+                    .set(Status::CARRY, data & 0x00_80 == 0x00_80);
                 let data = data.to_be_bytes()[0];
                 self.check_zero(data);
                 self.check_negative(data);
                 // Even the caveat on addressing is the same
                 match addr_mode {
-                    AddressingMode::Accum => *acc = data,
+                    AddressingMode::Accum => self.state.acc = data,
                     _ => self.write(data),
                 };
                 // cycle count correction
@@ -591,17 +599,19 @@ impl Cpu6502 {
             }
             Instruction::ROL => {
                 let data = (u16::from(self.read()) << 1)
-                    | if status.contains(Status::CARRY) {
+                    | if self.state.status.contains(Status::CARRY) {
                         0x01
                     } else {
                         0x00
                     };
-                status.set(Status::CARRY, data & 0x01_00 == 0x01_00);
+                self.state
+                    .status
+                    .set(Status::CARRY, data & 0x01_00 == 0x01_00);
                 let data: u8 = (data & 0xFF) as u8;
                 self.check_zero(data);
                 self.check_negative(data);
                 match addr_mode {
-                    AddressingMode::Accum => *acc = data,
+                    AddressingMode::Accum => self.state.acc = data,
                     _ => self.write(data),
                 };
                 // cycle count correction
@@ -628,49 +638,49 @@ impl Cpu6502 {
                 if addr_mode != AddressingMode::Abs {
                     self.cycles += 1;
                 }
-                *pc = addr;
+                self.state.pc = addr;
             }
             Instruction::JSR => {
                 if addr_mode != AddressingMode::Abs {
                     self.cycles += 1;
                 }
-                let addr_bytes = (*pc - 1).to_le_bytes();
+                let addr_bytes = (self.state.pc - 1).to_le_bytes();
                 self.push_stack(addr_bytes[1]);
                 self.push_stack(addr_bytes[0]);
-                *pc = addr;
+                self.state.pc = addr;
                 self.cycles += 1;
             }
             Instruction::RTI => {
                 let flags = self.pop_stack();
-                *status = Status::from_bits_truncate(flags) | Status::UNUSED;
+                self.state.status = Status::from_bits_truncate(flags) | Status::UNUSED;
                 let lo = self.pop_stack();
                 let hi = self.pop_stack();
-                *pc = bytes_to_addr(hi, lo);
+                self.state.pc = bytes_to_addr(hi, lo);
                 self.cycles += 1;
             }
             Instruction::RTS => {
                 let lo = self.pop_stack();
                 let hi = self.pop_stack();
-                *pc = bytes_to_addr(hi, lo) + 1;
+                self.state.pc = bytes_to_addr(hi, lo) + 1;
                 self.cycles += 2;
             }
             //endregion
 
             //region Loads
             Instruction::LDA => {
-                *acc = self.read();
-                self.check_zero(*acc);
-                self.check_negative(*acc);
+                self.state.acc = self.read();
+                self.check_zero(self.state.acc);
+                self.check_negative(self.state.acc);
             }
             Instruction::LDX => {
-                *x = self.read();
-                self.check_zero(*x);
-                self.check_negative(*x);
+                self.state.x = self.read();
+                self.check_zero(self.state.x);
+                self.check_negative(self.state.x);
             }
             Instruction::LDY => {
-                *y = self.read();
-                self.check_zero(*y);
-                self.check_negative(*y);
+                self.state.y = self.read();
+                self.check_zero(self.state.y);
+                self.check_negative(self.state.y);
             }
             //endregion
             Instruction::NOP => {
@@ -679,84 +689,84 @@ impl Cpu6502 {
 
             //region Register instructions
             Instruction::TAX => {
-                *x = *acc;
-                self.check_zero(*x);
-                self.check_negative(*x);
+                self.state.x = self.state.acc;
+                self.check_zero(self.state.x);
+                self.check_negative(self.state.x);
             }
             Instruction::TXA => {
-                *acc = *x;
-                self.check_zero(*acc);
-                self.check_negative(*acc);
+                self.state.acc = self.state.x;
+                self.check_zero(self.state.acc);
+                self.check_negative(self.state.acc);
             }
             Instruction::TAY => {
-                *y = *acc;
-                self.check_zero(*y);
-                self.check_negative(*y);
+                self.state.y = self.state.acc;
+                self.check_zero(self.state.y);
+                self.check_negative(self.state.y);
             }
             Instruction::TYA => {
-                *acc = *y;
-                self.check_zero(*acc);
-                self.check_negative(*acc);
+                self.state.acc = self.state.y;
+                self.check_zero(self.state.acc);
+                self.check_negative(self.state.acc);
             }
             Instruction::INX => {
-                *x = (Wrapping(*x) + Wrapping(1)).0;
-                self.check_zero(*x);
-                self.check_negative(*x);
+                self.state.x = (Wrapping(self.state.x) + Wrapping(1)).0;
+                self.check_zero(self.state.x);
+                self.check_negative(self.state.x);
             }
             Instruction::DEX => {
-                *x = (Wrapping(*x) - Wrapping(1)).0;
-                self.check_zero(*x);
-                self.check_negative(*x);
+                self.state.x = (Wrapping(self.state.x) - Wrapping(1)).0;
+                self.check_zero(self.state.x);
+                self.check_negative(self.state.x);
             }
             Instruction::INY => {
-                *y = (Wrapping(*y) + Wrapping(1)).0;
-                self.check_zero(*y);
-                self.check_negative(*y);
+                self.state.y = (Wrapping(self.state.y) + Wrapping(1)).0;
+                self.check_zero(self.state.y);
+                self.check_negative(self.state.y);
             }
             Instruction::DEY => {
-                *y = (Wrapping(*y) - Wrapping(1)).0;
-                self.check_zero(*y);
-                self.check_negative(*y);
+                self.state.y = (Wrapping(self.state.y) - Wrapping(1)).0;
+                self.check_zero(self.state.y);
+                self.check_negative(self.state.y);
             }
             //endregion
 
             //region Storage instruction
             Instruction::STA => {
-                self.write(*acc);
+                self.write(self.state.acc);
                 // Cycle count corrections
                 if addr_mode == AddressingMode::IndY {
                     self.cycles += 1;
                 }
             }
             Instruction::STX => {
-                self.write(*x);
+                self.write(self.state.x);
             }
             Instruction::STY => {
-                self.write(*y);
+                self.write(self.state.y);
             }
             //endregion
 
             //region Stack instructions
             Instruction::TXS => {
-                *stack = *x;
+                self.state.stack = self.state.x;
             }
             Instruction::TSX => {
-                *x = *stack;
-                self.check_zero(*x);
-                self.check_negative(*x);
+                self.state.x = self.state.stack;
+                self.check_zero(self.state.x);
+                self.check_negative(self.state.x);
             }
             Instruction::PHA => {
-                self.push_stack(*acc);
+                self.push_stack(self.state.acc);
             }
             Instruction::PLA => {
-                *acc = self.pop_stack();
-                self.check_zero(*acc);
-                self.check_negative(*acc);
+                self.state.acc = self.pop_stack();
+                self.check_zero(self.state.acc);
+                self.check_negative(self.state.acc);
                 self.cycles += 1;
             }
-            Instruction::PHP => self.push_stack(status.bits() | 0x30),
+            Instruction::PHP => self.push_stack(self.state.status.bits() | 0x30),
             Instruction::PLP => {
-                *status = Status::from_bits_truncate((self.pop_stack() & 0xEF) | 0x20);
+                self.state.status = Status::from_bits_truncate((self.pop_stack() & 0xEF) | 0x20);
                 self.cycles += 1;
             } //endregion
         }
@@ -834,7 +844,9 @@ impl fmt::Display for Cpu6502 {
         };
 
         let operand_bytes = bytes_to_addr(bytes[2], bytes[1]);
-        let bus = self.bus;
+        // HACK: Force a mutable reference for now
+        // TODO: Add a read_debug function
+        let bus = unsafe { very_bad_things(&self.bus) };
         let data = bus.read(addr);
         let is_jmp = instr == Instruction::JMP || instr == Instruction::JSR;
         let instr = match addr_mode {
@@ -904,4 +916,9 @@ impl fmt::Display for Cpu6502 {
             tot_cycles
         )
     }
+}
+
+#[allow(clippy::all)] // yes clippy I know
+unsafe fn very_bad_things<T>(my_ref: &T) -> &mut T {
+    &mut *(my_ref as *const T as *mut T)
 }
