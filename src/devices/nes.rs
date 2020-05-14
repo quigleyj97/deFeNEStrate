@@ -15,10 +15,11 @@ use crate::utils::structs::ppu::PALLETE_TABLE;
 pub struct NesEmulator {
     cpu: Cpu6502,
     ppu: Ppu2C02,
+    #[allow(dead_code)]
     ram: Ram,
     cart: Box<dyn Cartridge>,
-    cartCpu: CartCpuBridge<dyn Cartridge>,
-    cartPpu: CartPpuBridge<dyn Cartridge>,
+    cart_cpu_bridge: CartCpuBridge<dyn Cartridge>,
+    cart_ppu_bridge: CartPpuBridge<dyn Cartridge>,
     /// The total number of cycles that have been executed.
     cycles: u16,
     is_cpu_idle: bool,
@@ -98,7 +99,7 @@ impl NesEmulator {
         format!("{}", self.cpu)
     }
 
-    pub fn get_chr(&self, use_pallete: bool) -> Box<[u8; 256 * 128 * 3]> {
+    pub fn get_chr(&mut self, use_pallete: bool) -> Box<[u8; 256 * 128 * 3]> {
         let mut buf = Box::new([0u8; 256 * 128 * 3]);
 
         for r in 0..256 {
@@ -149,7 +150,7 @@ impl NesEmulator {
         buf
     }
 
-    pub fn get_palletes(&self) -> [u8; 128 * 2 * 3] {
+    pub fn get_palletes(&mut self) -> [u8; 128 * 2 * 3] {
         self.ppu.dump_palettes()
     }
     //endregion
@@ -161,33 +162,47 @@ impl NesEmulator {
 
     // TODO: Move the reset responsibility to the CPU directly
     pub fn load_cart_without_reset(&mut self, cart: Box<dyn Cartridge>) {
-        self.cpu.bus.unmap_device(&self.cartCpu);
+        self.cpu.bus.unmap_device(&self.cart_cpu_bridge);
+        self.ppu.bus.unmap_device(&self.cart_ppu_bridge);
         self.cart = cart;
-        let cpuBridge = CartCpuBridge::new(cart.as_ref());
-        self.cartCpu = cpuBridge;
+        let cart_cpu_bridge = CartCpuBridge::new(self.cart.as_ref());
+        let cart_ppu_bridge = CartPpuBridge::new(self.cart.as_ref());
+        self.cart_cpu_bridge = cart_cpu_bridge;
+        self.cart_ppu_bridge = cart_ppu_bridge;
         self.cpu
             .bus
-            .map_device(&self.cartCpu, CART_START_ADDR, 0xFFFF, 0xFFFF);
+            .map_device(&self.cart_cpu_bridge, CART_START_ADDR, 0xFFFF, 0xFFFF);
+        self.ppu
+            .bus
+            .map_device(&self.cart_ppu_bridge, 0x0000, 0x2000, 0xFFFF);
     }
 }
 
 impl NesEmulator {
-    fn new(cart: Box<dyn Cartridge>) -> NesEmulator {
-        let cartCpu = CartCpuBridge::new(cart.as_ref());
-        let cartPpu = CartPpuBridge::new(cart.as_ref());
+    pub fn new(cart: Box<dyn Cartridge>) -> NesEmulator {
+        let cart_cpu_bridge = CartCpuBridge::new(cart.as_ref());
+        let cart_ppu_bridge = CartPpuBridge::new(cart.as_ref());
         let ram = Ram::new(2048);
-        let cpu = Cpu6502::new();
-        let ppu = Ppu2C02::new();
+        let mut cpu = Cpu6502::new();
+        let mut ppu = Ppu2C02::new();
+        let ppu_register = PpuRegisters::new(&ppu);
         cpu.bus
-            .map_device(&cartCpu, CART_START_ADDR, 0xFFFF, 0xFFFF);
+            .map_device(&cart_cpu_bridge, CART_START_ADDR, 0xFFFF, 0xFFFF);
         cpu.bus.map_device(&ram, 0x0000, 0x2000, 0x07FF);
+        cpu.bus.map_device(
+            &ppu_register,
+            PPU_REGISTER_START_ADDR,
+            PPU_REGISTER_END_ADDR,
+            PPU_REGISTER_MASK,
+        );
+        ppu.bus.map_device(&cart_ppu_bridge, 0x0000, 0x2000, 0xFFFF);
         NesEmulator {
             cpu,
             ppu,
             ram,
             cart,
-            cartCpu,
-            cartPpu,
+            cart_cpu_bridge,
+            cart_ppu_bridge,
             cycles: 0,
             is_cpu_idle: false,
             is_frame_ready: false,
@@ -200,17 +215,19 @@ const PPU_REGISTER_END_ADDR: u16 = 0x3FFF;
 const PPU_REGISTER_MASK: u16 = 0x0007;
 
 struct PpuRegisters {
-    ppu: *const Ppu2C02,
+    ppu: *mut Ppu2C02,
 }
 
 impl PpuRegisters {
     fn new(ppu: *const Ppu2C02) -> PpuRegisters {
-        PpuRegisters { ppu }
+        PpuRegisters {
+            ppu: ppu as *mut Ppu2C02,
+        }
     }
 }
 
 impl BusDevice for PpuRegisters {
-    fn read(&self, addr: u16) -> u8 {
+    fn read(&mut self, addr: u16) -> u8 {
         assert!(
             addr < 8,
             "Precondition failed: Addr exceeds PPU register size"
@@ -224,5 +241,26 @@ impl BusDevice for PpuRegisters {
             "Precondition failed: Addr exceeds PPU register size"
         );
         unsafe { (*self.ppu).write_ppu(addr + PPU_REGISTER_START_ADDR, data) }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::devices::cartridge::NesMapper0Cart;
+
+    #[test]
+    fn constructs_nes() {
+        let cart = NesMapper0Cart::of_zeros();
+        // just testing that it doesn't fault
+        let _nes = NesEmulator::new(Box::new(cart));
+    }
+
+    #[test]
+    fn advances_emu() {
+        let cart = NesMapper0Cart::of_zeros();
+        let mut nes = NesEmulator::new(Box::new(cart));
+        // again testing that it doesn't fault
+        nes.step_emulator();
     }
 }

@@ -2,6 +2,7 @@
 //!
 //! This is shared between the WASM and native targets
 
+use crate::devices::cartridge::NesMapper0Cart;
 use crate::devices::nes::NesEmulator;
 use quicksilver::{
     geom::{Rectangle, Transform},
@@ -26,7 +27,7 @@ impl State for MainWindow {
     fn new() -> quicksilver::Result<MainWindow> {
         let font = Asset::new(Font::load("DroidSansMono.ttf"));
         Ok(MainWindow {
-            nes: NesEmulator::default(),
+            nes: NesEmulator::new(Box::new(NesMapper0Cart::of_zeros())),
             font,
             is_suspended: true,
             use_pallete: false,

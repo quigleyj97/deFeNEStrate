@@ -16,8 +16,10 @@ pub struct Ppu2C02 {
     ///
     /// TODO: This should live inside the Cartridge, as the mapper implementation
     /// has a high degree of control over this region of memory.
+    #[allow(dead_code)]
     nametable: Ram,
     /// The internal palette memory
+    #[allow(dead_code)]
     palette: Ram,
     /// The write-only control register
     control: u8,
@@ -71,10 +73,16 @@ pub struct Ppu2C02 {
     //#endregion
 }
 
+impl Default for Ppu2C02 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Ppu2C02 {
     //#region Statics
     pub fn new() -> Ppu2C02 {
-        let bus = Bus::new();
+        let mut bus = Bus::new();
         let nametable = Ram::new(0xF00);
         let palette = Ram::new(0x20);
         // TODO: Validate this
@@ -254,7 +262,7 @@ impl Ppu2C02 {
     }
 
     //region Debug aids
-    pub fn dump_palettes(&self) -> [u8; 128 * 2 * 3] {
+    pub fn dump_palettes(&mut self) -> [u8; 128 * 2 * 3] {
         let mut buf = [0u8; 128 * 2 * 3];
         for c in 0..32 {
             let color = self.read(0x3F00 | c);
@@ -275,7 +283,7 @@ impl Ppu2C02 {
     }
     //endregion
 
-    pub fn read(&self, addr: u16) -> u8 {
+    pub fn read(&mut self, addr: u16) -> u8 {
         self.bus.read(addr)
     }
 

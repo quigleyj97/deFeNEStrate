@@ -24,21 +24,23 @@ pub const CART_START_ADDR: u16 = 0x4020;
 pub const CART_PPU_START_ADDR: u16 = 0x2000;
 
 pub struct CartCpuBridge<T: Cartridge + ?Sized> {
-    cart: *const T,
+    cart: *mut T,
 }
 
 impl<T: Cartridge + ?Sized> CartCpuBridge<T> {
     pub fn new(cart: *const T) -> CartCpuBridge<T> {
-        CartCpuBridge { cart }
+        CartCpuBridge {
+            cart: cart as *mut T,
+        }
     }
 }
 
 impl<T: Cartridge + ?Sized> BusDevice for CartCpuBridge<T> {
-    fn read(&self, addr: u16) -> u8 {
+    fn read(&mut self, addr: u16) -> u8 {
         unsafe { (*self.cart).read_prg(addr + CART_START_ADDR) }
     }
 
-    fn write(&self, addr: u16, data: u8) {
+    fn write(&mut self, addr: u16, data: u8) {
         unsafe {
             (*self.cart).write_prg(addr + CART_START_ADDR, data);
         }
@@ -46,21 +48,23 @@ impl<T: Cartridge + ?Sized> BusDevice for CartCpuBridge<T> {
 }
 
 pub struct CartPpuBridge<T: Cartridge + ?Sized> {
-    cart: *const T,
+    cart: *mut T,
 }
 
 impl<T: Cartridge + ?Sized> CartPpuBridge<T> {
     pub fn new(cart: *const T) -> CartPpuBridge<T> {
-        CartPpuBridge { cart }
+        CartPpuBridge {
+            cart: cart as *mut T,
+        }
     }
 }
 
 impl<T: Cartridge + ?Sized> BusDevice for CartPpuBridge<T> {
-    fn read(&self, addr: u16) -> u8 {
+    fn read(&mut self, addr: u16) -> u8 {
         unsafe { (*self.cart).read_chr(addr + CART_PPU_START_ADDR) }
     }
 
-    fn write(&self, addr: u16, data: u8) {
+    fn write(&mut self, addr: u16, data: u8) {
         unsafe {
             (*self.cart).write_chr(addr + CART_PPU_START_ADDR, data);
         }
@@ -127,5 +131,13 @@ impl NesMapper0Cart {
             chr_rom,
             is_16k: header.prg_size == 1,
         })
+    }
+
+    pub fn of_zeros() -> NesMapper0Cart {
+        NesMapper0Cart {
+            prg_rom: vec![0; 0x4000],
+            chr_rom: vec![0; 0x2000],
+            is_16k: true,
+        }
     }
 }

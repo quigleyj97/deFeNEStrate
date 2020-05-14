@@ -29,12 +29,12 @@ const TEST_ILLEGAL_OPCODES: bool = false;
 
 #[test]
 fn nestest_exec() {
-    let mut nes = NesEmulator::default();
-
     let cart = provider::load_nestest_rom();
+
+    let mut nes = NesEmulator::new(Box::new(cart));
+
     let gold_log = provider::load_gold_standard_log();
 
-    nes.load_cart_without_reset(Box::new(cart));
     nes.set_pc(0xC000);
 
     let mut line = 1;

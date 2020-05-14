@@ -7,6 +7,7 @@ pub struct Ram {
     size: usize,
 }
 
+#[allow(clippy::len_without_is_empty)]
 impl Ram {
     pub fn new(size: usize) -> Ram {
         Ram {
@@ -21,7 +22,7 @@ impl Ram {
 }
 
 impl BusDevice for Ram {
-    fn read(&self, addr: u16) -> u8 {
+    fn read(&mut self, addr: u16) -> u8 {
         assert!(
             (addr as usize) < self.size,
             "Precondition failed: Addr exceeds RAM size"

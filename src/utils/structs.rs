@@ -6,7 +6,7 @@ pub mod cpu {
     /// This struct is held internally, but can be copied to power to things
     /// like debug formatters and, if taken at the end of a simulation cycle,
     /// serialization.
-    #[derive(Debug, Copy, PartialEq)]
+    #[derive(Debug, Copy, Clone, PartialEq)]
     pub struct CpuState {
         /// The Accumulator register
         pub acc: u8,
@@ -70,6 +70,12 @@ pub mod cpu {
         pub instr: Instruction,
     }
 
+    impl Default for CpuState {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     impl CpuState {
         /// Create a new CpuState
         ///
@@ -98,7 +104,7 @@ pub mod cpu {
         }
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Copy, Clone)]
     pub enum AddressingMode {
         /// Zero-Page
         ZP,
@@ -137,7 +143,7 @@ pub mod cpu {
     /// Enum for the instructions implemented by this emulator
     ///
     /// *depends on BCD flag, not currently supported
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Copy, Clone)]
     pub enum Instruction {
         /// ADd with Carry*
         ADC,
