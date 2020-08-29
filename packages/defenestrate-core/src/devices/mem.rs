@@ -26,14 +26,14 @@ impl BusDevice for Ram {
 }
 
 impl Ram {
-    fn new(size: usize) -> Ram {
+    pub fn new(size: usize) -> Ram {
         Ram {
             len: size,
             buf: Vec::with_capacity(size),
         }
     }
 
-    fn new_from_buf(size: usize, buf: &[u8]) -> Ram {
+    pub fn new_from_buf(size: usize, buf: &[u8]) -> Ram {
         Ram {
             len: size,
             buf: Vec::from(buf),
