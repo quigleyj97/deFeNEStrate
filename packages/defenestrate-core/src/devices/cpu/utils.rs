@@ -1,4 +1,4 @@
-use super::super::bus::BusDevice;
+use super::super::bus::Motherboard;
 use super::{
     cpu::WithCpu,
     structs::{AddressingMode, Instruction},
@@ -49,7 +49,7 @@ macro_rules! reg {
     }};
 }
 
-pub fn print_debug<T: WithCpu + BusDevice>(mb: &T) -> String {
+pub fn print_debug<T: WithCpu + Motherboard>(mb: &T) -> String {
     let bytes = reg!(get instruction, mb).to_le_bytes();
     let ops = match reg!(get addr_mode, mb) {
         AddressingMode::Abs

@@ -6,7 +6,7 @@
 
 use std::num::Wrapping;
 
-use super::super::bus::BusDevice;
+use super::super::bus::Motherboard;
 use super::{
     structs::{AddressingMode, CpuState, Instruction, Status, POWERON_CPU_STATE},
     utils,
@@ -15,7 +15,7 @@ use crate::{adj_cycles, bus, bytes_to_addr, reg};
 
 macro_rules! op_fn {
     ($mnemonic: ident, $mb: ident, $body: expr) => {
-        fn $mnemonic<T: WithCpu + BusDevice>($mb: &mut T) {
+        fn $mnemonic<T: WithCpu + Motherboard>($mb: &mut T) {
             $body
         }
     };
@@ -76,7 +76,7 @@ pub fn tick<T: WithCpu>(mb: &mut T) -> bool {
     true
 }
 
-pub fn exec<T: WithCpu + BusDevice>(mb: &mut T) {
+pub fn exec<T: WithCpu + Motherboard>(mb: &mut T) {
     run_interrupt(mb);
     let instruction = fetch_opcode(mb);
     decode_opcode(mb, instruction);
@@ -84,7 +84,7 @@ pub fn exec<T: WithCpu + BusDevice>(mb: &mut T) {
     exec_instr(mb);
 }
 
-pub fn debug<T: WithCpu + BusDevice>(mb: &mut T) -> String {
+pub fn debug<T: WithCpu + Motherboard>(mb: &mut T) -> String {
     let old_pc = reg!(get pc, mb);
     run_interrupt(mb);
     let instruction = fetch_opcode(mb);
@@ -99,7 +99,7 @@ pub fn debug<T: WithCpu + BusDevice>(mb: &mut T) -> String {
 }
 
 /// Triggers a hardware reset of the CPU
-pub fn reset<T: WithCpu + BusDevice>(mb: &mut T) {
+pub fn reset<T: WithCpu + Motherboard>(mb: &mut T) {
     let fst = bus!(read mb, 0xFFFC);
     let snd = bus!(read mb, 0xFFFD);
     let cpu = mb.cpu_mut();
@@ -141,7 +141,7 @@ fn adv_pc<T: WithCpu>(mb: &mut T, increment: u16) {
 }
 
 /// Process any CPU interrupts and return whether one occurred
-fn run_interrupt<T: WithCpu + BusDevice>(mb: &mut T) -> bool {
+fn run_interrupt<T: WithCpu + Motherboard>(mb: &mut T) -> bool {
     if !mb.cpu().interrupt_pending {
         return false;
     }
@@ -172,7 +172,7 @@ fn run_interrupt<T: WithCpu + BusDevice>(mb: &mut T) -> bool {
 ///
 /// TODO: Make this read a conditional number of bytes based on the instruction
 /// decode, since reads are not side-effect free
-fn fetch_opcode<T: WithCpu + BusDevice>(mb: &mut T) -> u32 {
+fn fetch_opcode<T: WithCpu + Motherboard>(mb: &mut T) -> u32 {
     let pc = mb.cpu().state.pc;
     // These will advance the cycle counter. If we need to make corrections
     // (eg, because an instruction isn't actually 3 bytes long), get_addr will
@@ -212,7 +212,7 @@ fn decode_opcode<T: WithCpu>(mb: &mut T, instruction: u32) {
 /// the store instructions) have some special-cased behavior that the 6502
 /// datasheet details. These depend on the instruction being executed, but
 /// this function is the best place to
-fn get_addr<T: WithCpu + BusDevice>(mb: &mut T, instruction: u32) -> u16 {
+fn get_addr<T: WithCpu + Motherboard>(mb: &mut T, instruction: u32) -> u16 {
     let ops = instruction.to_le_bytes();
     // Advance the PC at _least_ 1 byte
     adv_pc(mb, 1);
@@ -315,7 +315,7 @@ fn get_addr<T: WithCpu + BusDevice>(mb: &mut T, instruction: u32) -> u16 {
 }
 
 /// Read the data at the resolved address
-fn read<T: WithCpu + BusDevice>(mb: &mut T) -> u8 {
+fn read<T: WithCpu + Motherboard>(mb: &mut T) -> u8 {
     let ops = reg!(get instruction, mb).to_le_bytes();
     match reg!(get addr_mode, mb) {
         AddressingMode::Imm => ops[1],
@@ -325,19 +325,19 @@ fn read<T: WithCpu + BusDevice>(mb: &mut T) -> u8 {
 }
 
 /// Write the data to the resolved address
-fn write<T: WithCpu + BusDevice>(mb: &mut T, data: u8) {
+fn write<T: WithCpu + Motherboard>(mb: &mut T, data: u8) {
     adj_cycles!(mb, 1);
     mb.write(reg!(get addr, mb), data);
 }
 
-fn push_stack<T: WithCpu + BusDevice>(mb: &mut T, data: u8) {
+fn push_stack<T: WithCpu + Motherboard>(mb: &mut T, data: u8) {
     let addr = bytes_to_addr!(reg!(get stack, mb), 0x01u8);
     bus!(write mb, addr, data);
     adj_cycles!(mb, 1);
     reg!(sub stack, mb, 1);
 }
 
-fn pop_stack<T: WithCpu + BusDevice>(mb: &mut T) -> u8 {
+fn pop_stack<T: WithCpu + Motherboard>(mb: &mut T) -> u8 {
     reg!(add stack, mb, 1);
     let addr = bytes_to_addr!(reg!(get stack, mb), 0x01u8);
     bus!(read mb, addr)
@@ -379,15 +379,15 @@ fn check_negative<T: WithCpu>(mb: &mut T, op: u8) {
     }
 }
 
-fn exec_instr<T: WithCpu + BusDevice>(mb: &mut T) {
+fn exec_instr<T: WithCpu + Motherboard>(mb: &mut T) {
     let handler = match_handler(reg!(get instr, mb));
     handler(mb);
 }
 
 #[allow(type_alias_bounds)] // leaving this in for self-documenting reasons
-type OpcodeHandler<T: WithCpu + BusDevice> = fn(mb: &mut T);
+type OpcodeHandler<T: WithCpu + Motherboard> = fn(mb: &mut T);
 
-fn match_handler<T: WithCpu + BusDevice>(mnemonic: Instruction) -> OpcodeHandler<T> {
+fn match_handler<T: WithCpu + Motherboard>(mnemonic: Instruction) -> OpcodeHandler<T> {
     match mnemonic {
         Instruction::ADC => op_adc,
         Instruction::AND => op_and,
