@@ -1,0 +1,7 @@
+{
+  "name": "defenestrate-web",
+  "version": "0.1.0",
+  "main": "index.js",
+  "license": "GPL-3.0",
+  "private": true
+}
