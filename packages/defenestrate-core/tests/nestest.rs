@@ -16,34 +16,39 @@
 //! (though it's close!) so the test will run to completion and _then_ report
 //! the number of differences. If that number exceeds 100, the test will fail.
 
-extern crate defenestrate;
+extern crate defenestrate_core;
 
 mod util;
 
 use util::{logparse, provider};
 
-use defenestrate::devices::nes::NesEmulator;
+use defenestrate_core::devices::cpu::WithCpu;
+use defenestrate_core::devices::nes::Nes;
+use provider::NESTEST_ROM_PATH;
 
 // If true, test Nestest to completion
 const TEST_ILLEGAL_OPCODES: bool = false;
 
 #[test]
 fn nestest_exec() {
-    let mut nes = NesEmulator::default();
+    let mut nes = Nes::new_from_file(&NESTEST_ROM_PATH).expect("Could not read NESTEST rom");
 
-    let cart = provider::load_nestest_rom();
     let gold_log = provider::load_gold_standard_log();
 
-    nes.load_cart_without_reset(Box::new(cart));
-    nes.set_pc(0xC000);
+    nes.cpu_mut().state.pc = 0xC000;
 
     let mut line = 1;
 
     for gold_line in gold_log {
-        let log = nes.step_debug();
-        println!("L{:04} {}", line, log);
-        let log = logparse::parse_line(&log);
+        let raw_log = nes.dbg_step_cpu();
+        let log = logparse::parse_line(&raw_log);
         let gold_line = logparse::parse_line(&gold_line);
+        println!(
+            "L{:04} {}  DELTA {}",
+            line,
+            raw_log,
+            (log.cycle as i64) - (gold_line.cycle as i64)
+        );
         logparse::assert_logs_eq(&log, &gold_line);
         line += 1;
         // illegal opcodes begin at line 5004
@@ -51,6 +56,4 @@ fn nestest_exec() {
             break;
         }
     }
-
-    assert_eq!(nes.read_bus(0x0000), 0x00);
 }

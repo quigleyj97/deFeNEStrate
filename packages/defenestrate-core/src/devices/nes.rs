@@ -1,5 +1,5 @@
 use super::bus::{cpu_memory_map, BusDevice, BusPeekResult, Motherboard};
-use super::cartridge::ICartridge;
+use super::cartridge::{from_rom, ICartridge};
 use super::cpu;
 use super::mem::Ram;
 
@@ -68,6 +68,27 @@ impl Nes {
         }
     }
 
+    pub fn new_from_buf(buf: &[u8]) -> Nes {
+        let cart = from_rom(&buf);
+        Nes::new(Box::new(cart))
+    }
+
+    #[cfg(not(target = "wasm32"))]
+    pub fn new_from_file(path: &str) -> std::io::Result<Nes> {
+        use std::fs::File;
+        use std::io::prelude::*;
+        use std::path::Path;
+
+        let path = Path::new(&path);
+        let mut file = File::open(path)?;
+
+        let mut buf = Vec::new();
+
+        file.read_to_end(&mut buf)?;
+
+        Ok(Nes::new_from_buf(&buf))
+    }
+
     /// Advance the emulator 1 PPU cycle at a time, executing CPU instructions
     /// when appropriate (3 cycles in NTSC mode)
     pub fn tick(&mut self) {
@@ -82,6 +103,17 @@ impl Nes {
             cpu::exec(self);
         }
         self.is_cpu_idle = cpu::tick(self);
+    }
+
+    /// Run the CPU for one full instruction
+    ///
+    /// This does not accurately advance other parts of the emu, and is only for
+    /// debugging and testing
+    pub fn dbg_step_cpu(&mut self) -> String {
+        let status = cpu::debug(self);
+        // spin until the CPU is done ticking
+        while !cpu::tick(self) {}
+        status
     }
 }
 

@@ -5,6 +5,38 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "type": "lldb",
+            "request": "launch",
+            "name": "(OSX) Core integration tests",
+            "cwd": "${workspaceFolder}/packages/defenestrate-core",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                ],
+                "filter": {
+                    "kind": "test"
+                }
+            },
+            "program": "${cargo:program}",
+            "args": []
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "(OSX) Core unit tests",
+            "cwd": "${workspaceFolder}/packages/defenestrate-core",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib"
+                ],
+            },
+            "program": "${cargo:program}",
+            "args": []
+        },
+        {
             "name": "(Win debug) Launch Nestest",
             "type": "cppvsdbg",
             "request": "launch",
