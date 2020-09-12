@@ -30,7 +30,7 @@ pub fn parse_line(line: &str) -> EmulatorState {
 
 /// Test if left and right are equal to within an acceptable degree, and
 /// return the delta of clock cycles.
-pub fn assert_logs_eq(left: &EmulatorState, right: &EmulatorState) -> u8 {
+pub fn assert_logs_eq(left: &EmulatorState, right: &EmulatorState) {
     assert_eq!(left.pc, right.pc, "Program counter mismatch");
     assert_eq!(left.instr, right.instr, "Instruction mismatch");
     assert_eq!(left.disasm, right.disasm, "Disassembly mismatch");
@@ -39,15 +39,10 @@ pub fn assert_logs_eq(left: &EmulatorState, right: &EmulatorState) -> u8 {
     assert_eq!(left.yreg, right.yreg, "Y register mismatch");
     assert_eq!(left.status, right.status, "Status register mismatch");
     assert_eq!(left.stack, right.stack, "Stack pointer mismatch");
+    assert_eq!(left.cycle, right.cycle, "Cycle count deviation");
     // disable PPU checks for now
     // assert_eq!(left.ppu_col, right.ppu_col , "PPU column counter mismatch");
     // assert_eq!(left.ppu_scanline, right.ppu_scanline , "PPU scanline counter mismatch");
-
-    // Test that the cycle count does not deviate more than 100 cycles
-    let deviation = (i64::from(left.cycle) - i64::from(right.cycle)).abs();
-    assert!(deviation < 100, "Cycle count deviation");
-
-    deviation as u8
 }
 
 #[cfg(test)]
