@@ -29,7 +29,7 @@ impl Ram {
     pub fn new(size: usize) -> Ram {
         Ram {
             len: size,
-            buf: Vec::with_capacity(size),
+            buf: vec![0u8; size],
         }
     }
 
