@@ -1,4 +1,5 @@
 use super::bus::{cpu_memory_map, BusDevice, BusPeekResult, Motherboard};
+use super::cartridge::ICartridge;
 use super::cpu;
 use super::mem::Ram;
 
@@ -16,13 +17,15 @@ pub struct Nes {
     cycles: usize,
     /// Whether the CPU is ready to execute a new instruction
     is_cpu_idle: bool,
+    /// The cartridge containing the game to be played
+    cart: Box<dyn ICartridge>,
 }
 
 impl Motherboard for Nes {
     fn read(&mut self, addr: u16) -> u8 {
         let (device, addr) = cpu_memory_map::match_addr(addr);
         let res = match device {
-            cpu_memory_map::Device::Cartridge => todo!("Cartridge"),
+            cpu_memory_map::Device::Cartridge => self.cart.read_prg(addr, self.last_bus_value),
             cpu_memory_map::Device::RAM => self.ram.read(addr, self.last_bus_value),
             cpu_memory_map::Device::Unmapped => self.last_bus_value,
         };
@@ -33,7 +36,7 @@ impl Motherboard for Nes {
     fn peek(&self, addr: u16) -> Option<u8> {
         let (device, addr) = cpu_memory_map::match_addr(addr);
         match device {
-            cpu_memory_map::Device::Cartridge => BusPeekResult::Unmapped,
+            cpu_memory_map::Device::Cartridge => self.cart.peek_prg(addr),
             cpu_memory_map::Device::RAM => self.ram.peek(addr),
             cpu_memory_map::Device::Unmapped => BusPeekResult::Unmapped,
         }
@@ -43,7 +46,7 @@ impl Motherboard for Nes {
     fn write(&mut self, addr: u16, data: u8) {
         let (device, addr) = cpu_memory_map::match_addr(addr);
         match device {
-            cpu_memory_map::Device::Cartridge => todo!("Cartridge"),
+            cpu_memory_map::Device::Cartridge => self.cart.write_prg(addr, data),
             cpu_memory_map::Device::RAM => self.ram.write(addr, data),
             cpu_memory_map::Device::Unmapped => {}
         };
@@ -52,7 +55,7 @@ impl Motherboard for Nes {
 }
 
 impl Nes {
-    pub fn new() -> Nes {
+    pub fn new(cart: Box<dyn ICartridge>) -> Nes {
         let cpu = cpu::Cpu6502::new();
         let ram = Ram::new(2048);
         Nes {
@@ -61,6 +64,7 @@ impl Nes {
             last_bus_value: 0x00,
             cycles: 0,
             is_cpu_idle: true,
+            cart,
         }
     }
 
