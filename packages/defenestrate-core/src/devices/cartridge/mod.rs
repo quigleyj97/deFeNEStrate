@@ -2,7 +2,7 @@ mod ines;
 mod nrom;
 mod utils;
 
-pub use utils::ICartridge;
+pub use utils::{ICartridge, WithCartridge};
 
 /// Given a buffer to an iNES ROM, return an ICartridge representing that ROM
 pub fn from_rom(buf: &[u8]) -> impl utils::ICartridge {

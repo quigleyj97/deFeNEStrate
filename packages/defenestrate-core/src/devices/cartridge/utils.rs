@@ -17,3 +17,12 @@ pub trait ICartridge {
 
     fn write_prg(&mut self, addr: u16, value: u8);
 }
+
+/// A trait for devices that own a Cartridge
+pub trait WithCartridge {
+    /// Get a reference to a cartridge
+    fn cart(&self) -> &Box<dyn ICartridge>;
+
+    /// Get a mutable reference to a cartridge
+    fn cart_mut(&mut self) -> &mut Box<dyn ICartridge>;
+}

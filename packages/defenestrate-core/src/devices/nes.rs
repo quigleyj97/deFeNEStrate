@@ -1,5 +1,5 @@
 use super::bus::{cpu_memory_map, BusDevice, BusPeekResult, Motherboard};
-use super::cartridge::{from_rom, ICartridge};
+use super::cartridge::{from_rom, ICartridge, WithCartridge};
 use super::cpu;
 use super::mem::Ram;
 
@@ -124,5 +124,15 @@ impl cpu::WithCpu for Nes {
 
     fn cpu_mut(&mut self) -> &mut cpu::Cpu6502 {
         &mut self.cpu
+    }
+}
+
+impl WithCartridge for Nes {
+    fn cart(&self) -> &Box<dyn ICartridge> {
+        &self.cart
+    }
+
+    fn cart_mut(&mut self) -> &mut Box<dyn ICartridge> {
+        &mut self.cart
     }
 }
