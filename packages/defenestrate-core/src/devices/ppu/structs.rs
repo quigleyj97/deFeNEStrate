@@ -58,9 +58,9 @@ pub struct PpuState {
     pub secondary_oam_addr: u8,
     /** The  */
     /** The internal OAM memory */
-    pub oam: Vec<u8>,
+    pub oam: [u8; 256],
     /** The secondary OAM used for sprite evaluation */
-    pub secondary_oam: Vec<u8>,
+    pub secondary_oam: [u8; 64],
     /** The pixel currently being output by the PPU. */
     pub pixel_cycle: u16,
     /** The scanline currently being rendered. */
@@ -68,7 +68,7 @@ pub struct PpuState {
     /** Whether the PPU has completed a frame */
     pub frame_ready: bool,
     /** The internal framebuffer containing the rendered image, in u8 RGB */
-    pub frame_data: Vec<u8>,
+    pub frame_data: [u8; 184_320], // 240 * 256 * 3
     /** Whether a VBlank interrupt has occured */
     pub vblank_nmi_ready: bool,
     /**
@@ -116,12 +116,12 @@ const PPU_POWERON_STATE: PpuState = PpuState {
     mask: 0,
     // magic constant given from NESDEV for PPU poweron state
     status: 0xA0,
-    oam: vec![0u8, 256],
-    secondary_oam: vec![0u8, 64],
+    oam: [0u8; 256],
+    secondary_oam: [0u8; 64],
     pixel_cycle: 0,
     scanline: 0,
     frame_ready: false,
-    frame_data: vec![0u8, 240 * 256 * 3],
+    frame_data: [0u8; 184_320],
     vblank_nmi_ready: false,
     last_control_port_value: 0,
 };
@@ -238,7 +238,7 @@ bitflags! {
 /// To index, multiply the color index by 3 and take the next 3 values in memory
 /// as an (R,G,B) 8-byte triplet
 #[rustfmt::skip]
-pub const PALLETE_TABLE: Vec<u8> = vec![
+pub const PALLETE_TABLE: [u8; 192] = [
     //          0*
     /* *0 */    101, 101, 101, 
     /* *1 */    0, 45, 105, 
