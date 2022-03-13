@@ -1,6 +1,6 @@
 use super::structs::{
     PpuAddressPart, PpuControlFlags, PpuControlPorts, PpuMaskFlags, PpuOamAttributes,
-    PpuOamByteOffsets, PpuState, PpuStatusFlags, PALLETE_TABLE,
+    PpuOamByteOffsets, PpuState, PpuStatusFlags, PALLETE_TABLE, PPU_POWERON_STATE,
 };
 use super::utils;
 use crate::devices::bus::{BusDevice, BusPeekResult};
@@ -49,7 +49,11 @@ pub struct Ppu2C02 {
 }
 
 impl Ppu2C02 {
-    fn new() {}
+    pub fn new() -> Ppu2C02 {
+        let palette = PpuPaletteRam::new();
+        let state = PPU_POWERON_STATE;
+        Ppu2C02 { palette, state }
+    }
 
     /** Whether a VBlank NMI has occured. This should be plumbed to the CPU. */
     pub fn is_vblank(&self) -> bool {

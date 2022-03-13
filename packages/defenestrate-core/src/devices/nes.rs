@@ -2,11 +2,14 @@ use super::bus::{cpu_memory_map, BusDevice, BusPeekResult, Motherboard};
 use super::cartridge::{from_rom, ICartridge, WithCartridge};
 use super::cpu;
 use super::mem::Ram;
+use super::ppu;
 
 /// A struct representing the NES as a whole unit
 pub struct Nes {
     /// The NES CPU
     cpu: cpu::Cpu6502,
+    /// The NES PPU
+    ppu: ppu::Ppu2C02,
     /// The 2k RAM installed on the NES
     ram: Ram,
     /// The last value on the main address bus
@@ -57,9 +60,11 @@ impl Motherboard for Nes {
 impl Nes {
     pub fn new(cart: Box<dyn ICartridge>) -> Nes {
         let cpu = cpu::Cpu6502::new();
+        let ppu = ppu::Ppu2C02::new();
         let ram = Ram::new(2048);
         Nes {
             cpu,
+            ppu,
             ram,
             last_bus_value: 0x00,
             cycles: 0,
@@ -134,5 +139,15 @@ impl WithCartridge for Nes {
 
     fn cart_mut(&mut self) -> &mut Box<dyn ICartridge> {
         &mut self.cart
+    }
+}
+
+impl ppu::WithPpu for Nes {
+    fn ppu(&self) -> &ppu::Ppu2C02 {
+        &self.ppu
+    }
+
+    fn ppu_mut(&mut self) -> &mut ppu::Ppu2C02 {
+        &mut self.ppu
     }
 }

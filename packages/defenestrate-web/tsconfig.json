@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "outDir": "./public/dist/",
+        "sourceMap": true,
+        "strict": true,
+        "noImplicitReturns": true,
+        "noImplicitAny": true,
+        "module": "esnext",
+        "moduleResolution": "node",
+        "target": "es2020",
+        "allowJs": true,
+        "jsx": "react",
+        "lib": [
+            "DOM",
+            "ES2020"
+        ]
+    },
+    "files": [
+        "./src/index.tsx"
+    ]
+}

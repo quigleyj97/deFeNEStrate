@@ -92,7 +92,7 @@ pub struct PpuState {
     //#endregion
 }
 
-const PPU_POWERON_STATE: PpuState = PpuState {
+pub const PPU_POWERON_STATE: PpuState = PpuState {
     v: 0,
     t: 0,
     x: 0,

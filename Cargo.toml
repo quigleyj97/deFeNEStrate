@@ -16,4 +16,4 @@
 [workspace]
 members = ["packages/*"]
 # The web front-end is an NPM package
-exclude = ["packages/defenestrate-web"]
+exclude = ["packages/defenestrate-web", "packages/__generated_code"]
