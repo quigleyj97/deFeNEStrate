@@ -110,6 +110,13 @@ impl Nes {
         self.is_cpu_idle = cpu::tick(self);
     }
 
+    pub fn tick_frame(&mut self) -> &[u8] {
+        while !self.ppu.is_frame_ready() {
+            self.tick();
+        }
+        return self.ppu.get_buffer();
+    }
+
     /// Run the CPU for one full instruction
     ///
     /// This does not accurately advance other parts of the emu, and is only for

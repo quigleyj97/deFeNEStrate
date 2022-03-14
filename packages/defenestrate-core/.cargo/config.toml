@@ -1,0 +1,8 @@
+[target.wasm32-unknown-unknown]
+rustflags = [
+  # Annoyingly, the stack on WASM is of a fixed size and is only just barely
+  # enough to init the NES emulator inside an exported function. Attempting to
+  # init it with a wrapper or in JS causes a stack overflow, so we need to bump
+  # up the stack size to give us some breathing room.
+  "-C", "link-args=-z stack-size=1500000",
+]

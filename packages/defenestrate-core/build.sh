@@ -1,1 +1,0 @@
-wasm-pack build --out-dir ../__generated_code/defenestrate_wasm32
