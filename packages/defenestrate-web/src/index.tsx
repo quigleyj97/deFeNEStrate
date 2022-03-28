@@ -13,7 +13,8 @@ import("../../defenestrate-core/pkg/index.js").then(async (module) => {
     const emulator = new module.NesEmulator(buf);
     console.log("Emulator: ", emulator);
 
+    alert("Dismiss");
+
     console.log("Frame data: ", emulator.step_frame());
-    // emulator.dbg_step_cpu();
-    // emulator.free();
+    emulator.free();
 });

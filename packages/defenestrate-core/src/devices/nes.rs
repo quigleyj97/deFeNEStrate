@@ -98,7 +98,11 @@ impl Nes {
     /// when appropriate (3 cycles in NTSC mode)
     pub fn tick(&mut self) {
         self.cycles += 1;
-        // TODO: PPU ticks here
+        ppu::clock(self);
+        if self.ppu.is_vblank() {
+            cpu::trigger_nmi(self);
+            self.ppu.ack_vblank();
+        }
         if self.cycles % 3 != 0 {
             return; // no CPU ticks required
         }
@@ -111,8 +115,15 @@ impl Nes {
     }
 
     pub fn tick_frame(&mut self) -> &[u8] {
+        let mut cycles_watchdog = 0;
+        // if we exceed this limit, something is wrong in the frame ready path
+        const MAX_CYCLES: i32 = 1_000_000;
         while !self.ppu.is_frame_ready() {
             self.tick();
+            cycles_watchdog += 1;
+            if cycles_watchdog > MAX_CYCLES {
+                panic!("Simulation error: Expected PPU to have a frame ready by now.");
+            }
         }
         return self.ppu.get_buffer();
     }

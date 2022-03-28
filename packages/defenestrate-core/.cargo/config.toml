@@ -5,4 +5,7 @@ rustflags = [
   # init it with a wrapper or in JS causes a stack overflow, so we need to bump
   # up the stack size to give us some breathing room.
   "-C", "link-args=-z stack-size=1500000",
+  # Because I don't want to type a hundred lines of `a.wrapping_sub(b)`s and
+  # `(Wrapping(a) + Wrapping(b)).0`s
+  "-C", "overflow-checks=off"
 ]
