@@ -10,6 +10,7 @@
         "target": "es2020",
         "allowJs": true,
         "jsx": "react",
+        "allowSyntheticDefaultImports": true,
         "lib": [
             "DOM",
             "ES2020"
