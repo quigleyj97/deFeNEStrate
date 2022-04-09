@@ -1,0 +1,6 @@
+// pixelated is what we want but not every browser supports it, so
+// we have crisp-edges as a fallback
+canvas#emu-screen {
+    image-rendering: crisp-edges;
+    image-rendering: pixelated;
+}

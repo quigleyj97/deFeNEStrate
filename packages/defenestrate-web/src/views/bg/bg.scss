@@ -1,0 +1,29 @@
+@use "../../theme.scss";
+
+#app {
+    background: theme.$sky-grad;
+}
+
+#grid {
+  position: fixed;
+  left: -100%;
+  right: -100%;
+  bottom: -50%;
+  top: 0;
+  overflow: hidden;
+  
+  background:
+    linear-gradient(to top, transparent, theme.$sky-dark),
+     repeating-linear-gradient(0deg,
+       transparent 0px 50px,
+       theme.$neon-pink 50px 55px,
+       transparent 55px 100px
+     ),
+    repeating-linear-gradient(90deg,
+       transparent 0px 50px,
+       theme.$neon-pink 50px 55px,
+       transparent 55px 100px
+    ),
+    theme.$sky-dark;
+  transform: perspective(100em) rotate3d(1, 0, 0, 60deg);
+}

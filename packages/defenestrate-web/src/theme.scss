@@ -1,0 +1,16 @@
+$base-dark: #0E0326 !default;
+$base-light: #FEFEFE !default;
+
+// sunset colors
+$sunset-dark: #FF8603;
+$sunset-light: #FFFFEB;
+$sunset-grad: linear-gradient(to top, $sunset-dark, $sunset-light);
+
+// sky colors
+$sky-light: #280847;
+$sky-dark: #040311;
+$sky-grad: linear-gradient(to top, $sky-light, $sky-dark);
+
+// neon colors
+$neon-highlight: #FEFEFF;
+$neon-pink: #FF01FF;

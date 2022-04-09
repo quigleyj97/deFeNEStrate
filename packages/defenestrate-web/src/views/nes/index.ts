@@ -1,6 +1,8 @@
 import React from "react";
-import { NesEmulator, init_debug_hooks } from "../../defenestrate-core/pkg"
-import { convertEmuBufferToImageData } from "./utils/buffer";
+import { NesEmulator, init_debug_hooks } from "../../../../defenestrate-core/pkg"
+import { convertEmuBufferToImageData } from "../../utils/buffer";
+
+import "./nes.scss";
 
 declare global {
     namespace JSX {
@@ -40,12 +42,11 @@ export class HTMLNesEmulatorElement extends HTMLElement {
 
     constructor() {
         super();
-        this.attachShadow({ mode: "open" });
     }
 
     public async init() {
         this.loading = LoadingState.LOADING_WASM;
-        const { init_debug_hooks, NesEmulator } = await import("../../defenestrate-core/pkg");
+        const { init_debug_hooks, NesEmulator } = await import("../../../../defenestrate-core/pkg");
         this.module = { init_debug_hooks, NesEmulator };
         try {
             init_debug_hooks();
@@ -100,15 +101,7 @@ export class HTMLNesEmulatorElement extends HTMLElement {
     }
 
     private render() {
-        // pixelated is what we want but not every browser supports it, so
-        // we have crisp-edges as a fallback
         this.innerHTML = `
-            <style>
-                canvas#emu-screen {
-                    image-rendering: crisp-edges;
-                    image-rendering: pixelated;
-                }
-            </style>
             <canvas id="emu-screen" width="256" height="240"></canvas>
         `;
         this.canvas = this.querySelector("#emu-screen");

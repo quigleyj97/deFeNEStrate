@@ -1,7 +1,10 @@
 import React, { useEffect, useRef } from "react";
-import { HTMLNesEmulatorElement } from "./nes";
+import { HTMLNesEmulatorElement } from "../nes";
+import AppBackground from "../bg";
 
-export const App: React.FC<{}> = ({ }) => {
+import "./app.scss";
+
+const App: React.FC<{}> = ({ }) => {
     const ref = useRef<HTMLNesEmulatorElement>(null);
     useEffect(() => {
         if (!ref.current) return;
@@ -20,6 +23,11 @@ export const App: React.FC<{}> = ({ }) => {
         });
     }, [ref]);
     return (
-        <nes-emulator ref={ref}></nes-emulator>
+        <>
+            <AppBackground />
+            <nes-emulator ref={ref}></nes-emulator>
+        </>
     );
-}
+};
+
+export default App;
