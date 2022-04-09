@@ -4,3 +4,7 @@ canvas#emu-screen {
     image-rendering: crisp-edges;
     image-rendering: pixelated;
 }
+
+#emu-screen {
+    width: 100%;
+}

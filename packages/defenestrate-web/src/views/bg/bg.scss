@@ -1,7 +1,13 @@
 @use "../../theme.scss";
 
-#app {
+#app-background {
     background: theme.$sky-grad;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    z-index: -1;
 }
 
 #grid {
@@ -26,4 +32,19 @@
     ),
     theme.$sky-dark;
   transform: perspective(100em) rotate3d(1, 0, 0, 60deg);
+}
+
+.gutter {
+    display: flex;
+    flex-direction: row;
+
+    .gutter-spacer {
+        flex-grow: 1;
+    }
+
+    .gutter-content {
+        min-width: 300px;
+        max-width: 1500px;
+        flex-grow: 1;
+    }
 }

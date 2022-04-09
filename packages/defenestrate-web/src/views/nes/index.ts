@@ -66,6 +66,17 @@ export class HTMLNesEmulatorElement extends HTMLElement {
         if (!this.isModuleReady(this.module)) {
             throw Error("Bad state: WASM not loaded")
         }
+        if (this.emulator != null) {
+            try {
+                this.emulator.free();
+                this.emulator = void 0;
+            } catch (err) {
+                // complain and then just try to create a new one anyway
+                console.warn("Unexpected error when attempting to free stale emulator");
+                console.warn(err);
+                console.warn("This may result in memory leaks! Reload the page to recover.");
+            }
+        }
         try {
             this.emulator = new this.module.NesEmulator(new Uint8Array(rom));
         } catch (error) {

@@ -1,5 +1,26 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
 $base-dark: #0E0326 !default;
 $base-light: #FEFEFE !default;
+
+// mixins
+
+@mixin clip-corners($corner-size) {
+    clip-path: polygon(
+        0% $corner-size,
+        $corner-size $corner-size,
+        $corner-size 0, 
+        calc(100% - $corner-size) 0,
+        calc(100% - $corner-size) $corner-size,
+        100% $corner-size,
+        100% calc(100% - $corner-size), 
+        calc(100% - $corner-size) calc(100% - $corner-size),
+        calc(100% - $corner-size) 100%, 
+        $corner-size 100%, 
+        $corner-size calc(100% - $corner-size),
+        0% calc(100% - $corner-size)
+    );
+}
 
 // sunset colors
 $sunset-dark: #FF8603;
@@ -14,3 +35,47 @@ $sky-grad: linear-gradient(to top, $sky-light, $sky-dark);
 // neon colors
 $neon-highlight: #FEFEFF;
 $neon-pink: #FF01FF;
+
+// fonts
+$font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+sans-serif;
+$font-display: 'Press Start 2P', 'ui-monospace', monospace;
+
+// UI
+
+.ui-display-txt {
+    font-family: $font-display;
+    color: $base-light;
+    font-size: 4em;
+    text-align: center;
+    margin: 1em 0;
+}
+
+.ui-btn {
+    padding: 1em;
+    font-size: 2em;
+    font-family: $font-display;
+    background-color: $sky-light;
+    color: $neon-highlight;
+    border: 5px solid $neon-highlight;
+    // use a bigger border instead, since that's easier to see with the
+    // clip path on
+    outline: none;
+
+    &:hover {
+        outline: 5px solid darken($neon-highlight, 10%);
+        color: darken($neon-highlight, 10%);
+    }
+
+    &:focus {
+        outline: 5px solid darken($neon-highlight, 10%);
+        border-color: darken($neon-highlight, 10%);
+        color: darken($neon-highlight, 10%);
+        background-color: $sky-dark;
+        clip-path: none;
+    }
+
+    // cut the outline where supported
+    @include clip-corners(5px);
+}
