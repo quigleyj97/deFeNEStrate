@@ -148,6 +148,25 @@ impl Nes {
         while !cpu::tick(self) {}
         status
     }
+
+    /// Trigger a hardware reset
+    ///
+    /// This is _not_ the same as stopping the emulator and reloading a ROM!
+    /// There was a physical reset button on the NES that would reset some state
+    /// and force the CPU to go back to the reset vector, but memory would be
+    /// left alone (among other things).
+    pub fn reset(&mut self) {
+        cpu::reset(self);
+    }
+
+    /// Dump nametables, palette RAM, and CHR ROM to buffers
+    pub fn dump_debug_data(&self) -> (&[u8], &[u8], &[u8]) {
+        return (
+            self.cart.dump_nametables(),
+            self.ppu.dump_palettes(),
+            self.cart.dump_chr(),
+        );
+    }
 }
 
 impl cpu::WithCpu for Nes {

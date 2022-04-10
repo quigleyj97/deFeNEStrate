@@ -16,6 +16,13 @@ pub struct NesEmulator {
     nes: Nes,
 }
 
+#[wasm_bindgen(getter_with_clone)]
+pub struct EmulatorDebugState {
+    pub nametable: Uint8Array,
+    pub palette: Uint8Array,
+    pub chr: Uint8Array,
+}
+
 #[wasm_bindgen]
 impl NesEmulator {
     #[wasm_bindgen(constructor)]
@@ -27,6 +34,21 @@ impl NesEmulator {
     #[wasm_bindgen]
     pub fn dbg_step_cpu(&mut self) -> String {
         return format!("{}", &self.nes.dbg_step_cpu());
+    }
+
+    #[wasm_bindgen]
+    pub fn reset(&mut self) {
+        self.nes.reset();
+    }
+
+    #[wasm_bindgen]
+    pub fn dump_debug_data(&self) -> EmulatorDebugState {
+        let (nametable, palette, chr) = self.nes.dump_debug_data();
+        return EmulatorDebugState {
+            nametable: Uint8Array::from(nametable),
+            palette: Uint8Array::from(palette),
+            chr: Uint8Array::from(chr),
+        };
     }
 
     #[wasm_bindgen]

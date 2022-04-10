@@ -16,6 +16,10 @@ pub trait ICartridge {
     fn peek_prg(&self, addr: u16) -> BusPeekResult;
 
     fn write_prg(&mut self, addr: u16, value: u8);
+
+    fn dump_chr(&self) -> &[u8];
+
+    fn dump_nametables(&self) -> &[u8];
 }
 
 /// A trait for devices that own a Cartridge

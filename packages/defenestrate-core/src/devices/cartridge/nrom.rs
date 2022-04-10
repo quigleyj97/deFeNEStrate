@@ -82,6 +82,14 @@ impl ICartridge for NROMCartridge {
     fn write_prg(&mut self, _addr: u16, _value: u8) {
         return; // no-op: NROM PRG is read-only
     }
+
+    fn dump_chr(&self) -> &[u8] {
+        return &self.chr;
+    }
+
+    fn dump_nametables(&self) -> &[u8] {
+        return &self.nametable;
+    }
 }
 
 #[cfg(test)]

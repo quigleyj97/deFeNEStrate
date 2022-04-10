@@ -83,6 +83,10 @@ impl Ppu2C02 {
         self.state.oam[addr as usize] = data;
     }
 
+    pub fn dump_palettes(&self) -> &[u8] {
+        &self.palette.palette_buffer
+    }
+
     /** Returns true if rendering is enabled and the PPU is in the visible region */
     fn is_rendering(&self) -> bool {
         return (self.state.mask & (PpuMaskFlags::BG_ENABLE | PpuMaskFlags::SPRITE_ENABLE).bits())
