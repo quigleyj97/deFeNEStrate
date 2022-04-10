@@ -3,8 +3,8 @@ use super::structs::{
     PpuOamByteOffsets, PpuState, PpuStatusFlags, PALLETE_TABLE, PPU_POWERON_STATE,
 };
 use super::utils;
-use crate::devices::bus::{BusDevice, BusPeekResult};
-use crate::devices::cartridge::WithCartridge;
+use crate::devices::bus::{ppu_memory_map, BusDevice, BusPeekResult};
+use crate::devices::cartridge::{self, WithCartridge};
 use crate::state;
 
 const PPU_NAMETABLE_START_ADDR: u16 = 0x2000;
@@ -97,7 +97,7 @@ impl Ppu2C02 {
  * Addresses should be given in CPU Bus addresses (eg, $PPUCTRL)
  */
 pub fn control_port_read<T: WithPpu + WithCartridge>(mb: &mut T, port_addr: u16) -> u8 {
-    match PpuControlPorts::from_bits_truncate(port_addr) {
+    match port_addr + 0x2000 {
         PpuControlPorts::PPUSTATUS => {
             let status = state!(get status, mb)
                 | (PpuStatusFlags::STATUS_IGNORED.bits() & state!(get last_control_port_value, mb));
@@ -167,7 +167,7 @@ pub fn control_port_read<T: WithPpu + WithCartridge>(mb: &mut T, port_addr: u16)
  */
 pub fn control_port_write<T: WithPpu + WithCartridge>(mb: &mut T, port_addr: u16, data: u8) {
     mb.ppu_mut().state.last_control_port_value = data;
-    match PpuControlPorts::from_bits_truncate(port_addr) {
+    match port_addr + 0x2000 {
         // TODO: pre-boot cycle check
         // TODO: simulate immediate NMI hardware bug
         // TODO: Bit 0 race condition
@@ -253,11 +253,29 @@ pub fn control_port_write<T: WithPpu + WithCartridge>(mb: &mut T, port_addr: u16
 }
 
 /// Read from the PPU bus
-fn read<T: WithPpu + WithCartridge>(_mb: &mut T, _addr: u16) -> u8 {
-    0
+fn read<T: WithPpu + WithCartridge>(mb: &mut T, addr: u16) -> u8 {
+    let (device, addr) = ppu_memory_map::match_addr(addr);
+    let last_bus_value = mb.ppu().state.last_bus_value;
+    let response = match device {
+        ppu_memory_map::Device::CartridgeOrNametable => {
+            mb.cart_mut().read_chr(addr, last_bus_value)
+        }
+        ppu_memory_map::Device::PaletteRAM => mb.ppu_mut().palette.read(addr, last_bus_value),
+        _ => last_bus_value,
+    };
+    mb.ppu_mut().state.last_bus_value = response;
+    return response;
 }
 
-fn write<T: WithPpu + WithCartridge>(_mb: &mut T, _addr: u16, _data: u8) {}
+fn write<T: WithPpu + WithCartridge>(mb: &mut T, addr: u16, data: u8) {
+    let (device, addr) = ppu_memory_map::match_addr(addr);
+    mb.ppu_mut().state.last_bus_value = data;
+    match device {
+        ppu_memory_map::Device::CartridgeOrNametable => mb.cart_mut().write_chr(addr, data),
+        ppu_memory_map::Device::PaletteRAM => mb.ppu_mut().palette.write(addr, data),
+        _ => {}
+    }
+}
 
 /** Clock the PPU, rendering to the internal framebuffer and modifying state as appropriate */
 pub fn clock<T: WithPpu + WithCartridge>(mb: &mut T) {
@@ -397,6 +415,10 @@ pub fn clock<T: WithPpu + WithCartridge>(mb: &mut T) {
     let nmi_enabled = (state!(get control, mb) & PpuControlFlags::VBLANK_NMI_ENABLE.bits()) > 0;
     if state!(get scanline, mb) == 241 && state!(get pixel_cycle, mb) == 0 {
         state!(set vblank_nmi_ready, mb, nmi_enabled);
+        if (nmi_enabled) {
+            panic!("panik")
+        } else {
+        } // kalm
         state!(or status, mb, PpuStatusFlags::VBLANK.bits());
     }
     // self.state is a true render scanline

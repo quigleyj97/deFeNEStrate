@@ -1,6 +1,8 @@
+use crate::bytes_to_addr;
+
 use super::bus::{cpu_memory_map, BusDevice, BusPeekResult, Motherboard};
 use super::cartridge::{from_rom, ICartridge, WithCartridge};
-use super::cpu;
+use super::cpu::{self, WithCpu};
 use super::mem::Ram;
 use super::ppu;
 
@@ -30,6 +32,7 @@ impl Motherboard for Nes {
         let res = match device {
             cpu_memory_map::Device::Cartridge => self.cart.read_prg(addr, self.last_bus_value),
             cpu_memory_map::Device::RAM => self.ram.read(addr, self.last_bus_value),
+            cpu_memory_map::Device::PPUControl => ppu::control_port_read(self, addr),
             cpu_memory_map::Device::Unmapped => self.last_bus_value,
         };
         self.last_bus_value = res;
@@ -41,6 +44,7 @@ impl Motherboard for Nes {
         match device {
             cpu_memory_map::Device::Cartridge => self.cart.peek_prg(addr),
             cpu_memory_map::Device::RAM => self.ram.peek(addr),
+            cpu_memory_map::Device::PPUControl => BusPeekResult::MutableRead,
             cpu_memory_map::Device::Unmapped => BusPeekResult::Unmapped,
         }
         .to_optional()
@@ -51,6 +55,7 @@ impl Motherboard for Nes {
         match device {
             cpu_memory_map::Device::Cartridge => self.cart.write_prg(addr, data),
             cpu_memory_map::Device::RAM => self.ram.write(addr, data),
+            cpu_memory_map::Device::PPUControl => ppu::control_port_write(self, addr, data),
             cpu_memory_map::Device::Unmapped => {}
         };
         self.last_bus_value = data;
@@ -62,7 +67,7 @@ impl Nes {
         let cpu = cpu::Cpu6502::new();
         let ppu = ppu::Ppu2C02::new();
         let ram = Ram::new(2048);
-        Nes {
+        let mut nes = Nes {
             cpu,
             ppu,
             ram,
@@ -70,7 +75,12 @@ impl Nes {
             cycles: 0,
             is_cpu_idle: true,
             cart,
-        }
+        };
+        let fst = nes.read(0xFFFC);
+        let snd = nes.read(0xFFFD);
+        let addr = bytes_to_addr!(fst, snd);
+        nes.cpu_mut().state.pc = addr;
+        return nes;
     }
 
     pub fn new_from_buf(buf: &[u8]) -> Nes {

@@ -91,23 +91,55 @@ pub mod cpu_memory_map {
     pub enum Device {
         Cartridge,
         RAM,
+        PPUControl,
         Unmapped,
     }
 
     /// The Cartridge
-    pub const Cartridge: Range = Range::new_unmasked(0x4020, 0xFFFF);
+    pub const CARTRIDGE: Range = Range::new_unmasked(0x4020, 0xFFFF);
 
     /// The primary RAM
     pub const RAM: Range = Range::new(0x0000, 0x1FFF, 0x07FF);
+
+    pub const PPU_PORTS: Range = Range::new(0x2000, 0x3FFF, 0x0007);
+
+    pub const OAM_DMA: Range = Range::new(0x4014, 0x4014, 0xFFFF);
+
+    pub const CONTROLLER_DMA: Range = Range::new(0x4016, 0x4017, 0xFFFF);
 
     /// Given a test address, return a device and a local address
     ///
     /// If the address is unmapped, the returned address will be a global addr.
     pub fn match_addr(addr: u16) -> (Device, u16) {
-        if let Some(addr) = Cartridge.map(addr) {
+        if let Some(addr) = CARTRIDGE.map(addr) {
             (Device::Cartridge, addr)
         } else if let Some(addr) = RAM.map(addr) {
             (Device::RAM, addr)
+        } else if let Some(addr) = PPU_PORTS.map(addr) {
+            (Device::PPUControl, addr)
+        } else {
+            (Device::Unmapped, addr)
+        }
+    }
+}
+
+pub mod ppu_memory_map {
+    use super::Range;
+
+    pub enum Device {
+        CartridgeOrNametable,
+        PaletteRAM,
+        Unmapped,
+    }
+
+    pub const CARTRIDGE: Range = Range::new(0, 0x3EFF, 0xFFFF);
+    pub const PaletteRAM: Range = Range::new(0x3F00, 0x3FFF, 0x001F);
+
+    pub fn match_addr(addr: u16) -> (Device, u16) {
+        if let Some(addr) = CARTRIDGE.map(addr) {
+            (Device::CartridgeOrNametable, addr)
+        } else if let Some(addr) = PaletteRAM.map(addr) {
+            (Device::PaletteRAM, addr)
         } else {
             (Device::Unmapped, addr)
         }

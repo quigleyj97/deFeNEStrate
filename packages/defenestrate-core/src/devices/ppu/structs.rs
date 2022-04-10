@@ -89,6 +89,8 @@ pub struct PpuState {
     pub ppudata_buffer: u8,
     /** The last value put on a PPU control port */
     pub last_control_port_value: u8,
+    /** The last value put on the internal PPU bus */
+    pub last_bus_value: u8,
     //#endregion
 }
 
@@ -124,6 +126,7 @@ pub const PPU_POWERON_STATE: PpuState = PpuState {
     frame_data: [0u8; 184_320],
     vblank_nmi_ready: false,
     last_control_port_value: 0,
+    last_bus_value: 0,
 };
 
 bitflags! {
@@ -190,28 +193,26 @@ bitflags! {
     }
 }
 
-bitflags! {
-    /// Constants for the CPU addresses of PPU control ports
-    pub struct PpuControlPorts: u16 {
-        /// Write-only PPU control register
-        const PPUCTRL = 0x2000;
-        /// PPU mask register
-        const PPUMASK = 0x2001;
-        /// Read-only PPU status register
-        const PPUSTATUS = 0x2002;
-        /// Latch to set the address for OAMDATA into the PPU's OAM memory
-        const OAMADDR = 0x2003;
-        /// The value to be written into OAM
-        const OAMDATA = 0x2004;
-        /// Write-twice latch for setting the scroll position
-        const PPUSCROLL = 0x2005;
-        /// Write-twice latch for setting the address for the PPUDATA latch
-        const PPUADDR = 0x2006;
-        /// Read-write port for interfacing with the PPU bus
-        const PPUDATA = 0x2007;
-        /// Address for setting up OAM
-        const OAMDMA = 0x4014;
-    }
+/// Constants for the CPU addresses of PPU control ports
+pub mod PpuControlPorts {
+    /// Write-only PPU control register
+    pub const PPUCTRL: u16 = 0x2000;
+    /// PPU mask register
+    pub const PPUMASK: u16 = 0x2001;
+    /// Read-only PPU status register
+    pub const PPUSTATUS: u16 = 0x2002;
+    /// Latch to set the address for OAMDATA into the PPU's OAM memory
+    pub const OAMADDR: u16 = 0x2003;
+    /// The value to be written into OAM
+    pub const OAMDATA: u16 = 0x2004;
+    /// Write-twice latch for setting the scroll position
+    pub const PPUSCROLL: u16 = 0x2005;
+    /// Write-twice latch for setting the address for the PPUDATA latch
+    pub const PPUADDR: u16 = 0x2006;
+    /// Read-write port for interfacing with the PPU bus
+    pub const PPUDATA: u16 = 0x2007;
+    /// Address for setting up OAM
+    pub const OAMDMA: u16 = 0x4014;
 }
 
 bitflags! {
