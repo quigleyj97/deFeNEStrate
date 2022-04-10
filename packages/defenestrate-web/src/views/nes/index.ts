@@ -39,6 +39,7 @@ export class HTMLNesEmulatorElement extends HTMLElement {
     private emulator?: NesEmulator;
     private canvas: HTMLCanvasElement | null = null;
     private renderingContext?: CanvasRenderingContext2D;
+    private isRunning = false;
 
     constructor() {
         super();
@@ -88,6 +89,7 @@ export class HTMLNesEmulatorElement extends HTMLElement {
         this.loading = LoadingState.READY;
     }
 
+    /** Run emulation for just a single frame. */
     public run_frame() {
         if (!this.isEmulatorReady(this.emulator)) {
             throw Error("Bad state: Emulator not loaded")
@@ -95,6 +97,28 @@ export class HTMLNesEmulatorElement extends HTMLElement {
         const output = this.emulator.step_frame();
         const frame = convertEmuBufferToImageData(output, 256, 240);
         this.renderingContext!.putImageData(frame, 0, 0);
+    }
+
+    /**
+     * Run emulation every frame until haltEmulation is called.
+     */
+    public beginOrResumeEmulation() {
+        if (!this.isEmulatorReady(this.emulator)) {
+            throw Error("Bad state: Emulator not loaded")
+        }
+        this.isRunning = true;
+        const tick = () => {
+            if (!this.isRunning) return;
+            const output = this.emulator!.step_frame();
+            const frame = convertEmuBufferToImageData(output, 256, 240);
+            this.renderingContext!.putImageData(frame, 0, 0);
+            requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+    }
+
+    public haltEmulation() {
+        this.isRunning = false;
     }
 
 

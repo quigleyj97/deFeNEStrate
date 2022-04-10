@@ -19,14 +19,14 @@ export function convertEmuBufferToImageData(buffer: ArrayBuffer, width: number, 
     const imageData = new ImageData(width, height);
     const bufferView = new Uint8Array(buffer);
     const data = imageData.data;
-    for (let row = 0; row < width; row++) {
-        for (let col = 0; col < height; col++) {
-            const idx = col * width + row;
-            data[idx * 4 + 0] = bufferView[idx * 3 + 0];
-            data[idx * 4 + 1] = bufferView[idx * 3 + 1];
-            data[idx * 4 + 2] = bufferView[idx * 3 + 2];
-            data[idx * 4 + 3] = 255; // opaque
-        }
+    const nPixels = width * height;
+    for (let i = 0; i < nPixels; i++) {
+        const stride3idx = i * 3;
+        const stride4idx = i * 4;
+        data[stride4idx] = bufferView[stride3idx]
+        data[stride4idx + 1] = bufferView[stride3idx + 1]
+        data[stride4idx + 2] = bufferView[stride3idx + 2]
+        data[stride4idx + 3] = 255; // opaque
     }
     return imageData;
 }
